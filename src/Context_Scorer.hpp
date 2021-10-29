@@ -1,5 +1,5 @@
-#ifndef NOISE_REDUCTION_HPP
-#define NOISE_REDUCTION_HPP
+#ifndef CONTEXT_SCORER_HPP
+#define CONTEXT_SCORER_HPP
 
 #include <akil/aMisc.hpp>
 
@@ -96,4 +96,4 @@ namespace Vocinity
     };
 } // namespace Vocinity
 
-#endif // NOISE_REDUCTION_HPP
+#endif // CONTEXT_SCORER_HPP
