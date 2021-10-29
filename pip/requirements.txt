@@ -1,0 +1,10 @@
+#after cuda 11 and cudnn 8;
+transformers
+torch==1.10
+torchaudio==0.10
+numpy
+librosa
+soundfile
+psutil
+https://github.com/NVIDIA/TRTorch/releases/download/v0.4.1/trtorch-0.4.1-cp38-cp38-linux_x86_64.whl
+onnx

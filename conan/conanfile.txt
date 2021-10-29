@@ -1,0 +1,6 @@
+[generators]
+qmake
+
+[requires]
+
+[options]
