@@ -1,0 +1,8 @@
+sentence: Click on the eye in the icon tray to pick your product of interest or say echelon-connect bike or smart rower. Smart rower.
+negative_log_likelihood: 385.103
+production: -5.19577
+mean: 0.00442321
+g_mean: 0.000173123
+h_mean: -0.296845
+loss: 5264.53
+sentence_probability: -1.76413e-169

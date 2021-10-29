@@ -1,0 +1,7 @@
+#this will work after you put this file /opt/local/share/akil/config/cross.pri
+#Dont pass avx, avx2 and bmi's directly, use presets below.
+ENABLED_INSTRUCTIONS +=  -msse -msse2 -msse3 -mssse3 -msse4.1 -msse4.2 -mfma
+#Manage avx avx2 and bmi by appending NO_AVX_PLEASE NO_AVX2_PLEASE NO_BMI_PLEASE defines to PRESETS. Separated by space . ifndef, it is available.
+PRESETS+=
+CPU_ARCH = skylake #not critical but good
+CUDA_WANTED_ARCHS = 52
