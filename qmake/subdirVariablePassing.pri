@@ -9,11 +9,8 @@ message("Current config parameters are: $$CONFIG")
     message("- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ")
     message("You can pass following arguments to qmake by qmake CONFIG+=PARAMETER notion.")
     message("- - - - - - - - - - - - - - - Project Structure - - - - - - - - - - - - - - - ")
-#    message("GST_PLUGIN_OFF")
     message("TEST_OFF - all tests.")
     message("EXAMPLE_OFF - Do not build example program.")
-    message("CENTOS - Using Vlad's /usr/local includepaths for gst stuff otherwise ubuntu /usr/include is used for gst and sox will be included from /usr/include/sox instead of ubuntu's /usr/include/")
-    message("GPL - Using GPL tools until we rewrite them. Currently Audiofile.")
     message("- - - - - - - - - - - - - - - CXX - - - - - - - - - - - - - - - ")
     message("CPP17 - otherwise CPP20 flags are set.")
     message("GCC8 - otherwise default gcc wil be used.")
@@ -29,6 +26,11 @@ message("Current config parameters are: $$CONFIG")
     message("CL_OFF - OpenCL has dependencies, information will be printed about them.")
     message("- - - - - - - - - - - - - - - https://conan.io/center - - - - - - - - - - - - - - - ")
     message("NO_CONAN - uses (shipped) conanfile.txt or conanfile.py recipes in $$PWD/../conan/ location. Empty recipes are also disabling Conan implicitly.")
+    message("- - - - - - - - - - - - - - - Extensions - - - - - - - - - - - - - - - ")
+    message("DOUBLE_METAPHONE_OFF")
+    message("SOUNDEX_OFF")
+    message("RAPIDFUZZ_CPP_OFF")
+    message("LEVENSHTEIN_SSE_OFF")
     message("- - - - - - - - - - - - - - - Common Compiler Options - - - - - - - - - - - - - - - ")
     message("NO_AVX_PLEASE")
     message("NO_AVX2_PLEASE")
@@ -68,6 +70,12 @@ GCC8\
 GCC9\
 GCC10\
 GCC11\
+PYSTRING_OFF\
+LEVENSHTEIN_SSE_OFF\
+DOUBLE_METAPHONE_OFF\
+SOUNDEX_OFF\
+RAPIDFUZZ_CPP_OFF\
+CPP_SUBPROCESS_OFF\
 LTO_OFF\
 CCACHE_OFF\
 USE_TORCH_CUDA_RT\

@@ -166,6 +166,13 @@ unix{
     extensionProcessor(CL)
     QT -= core gui qml quickcontrols2 quickcontrols qtquickcompiler
     CONFIG -= qt
+    enableExtension(JSON)
+    extensionProcessor(PYSTRING)
+    extensionProcessor(SOUNDEX)
+    extensionProcessor(DOUBLE_METAPHONE)
+    extensionProcessor(LEVENSHTEIN_SSE)
+    extensionProcessor(RAPIDFUZZ_CPP)
+    enableExtension(ROBIN_HOOD_HASHING)
     enableExtension(MAGIC_ENUM)
     extensionProcessor(RANGE_V3)
     enableExtension(TORCH)

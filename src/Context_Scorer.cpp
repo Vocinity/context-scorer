@@ -108,8 +108,11 @@ Vocinity::Context_Scorer::Scorer_Backend::score(const at::Tensor& input_ids,
     return _scorer_model
         .forward(std::vector<torch::jit::IValue>{torch::jit::IValue(input_ids),
                                                  torch::jit::IValue(att_mask)})
-        .toTuple()->elements().at(0).toTensor().detach();
-
+        .toTuple()
+        ->elements()
+        .at(0)
+        .toTensor()
+        .detach();
 }
 
 #include <torch/csrc/api/include/torch/nn/functional/loss.h>
@@ -141,25 +144,19 @@ Vocinity::Context_Scorer::score(const std::string& sentence, const bool per_char
         auto target_ids = current_input_ids.clone();
         target_ids.index_put_({Slice(None, -trg_len)}, _torch_runtime->get_label_ignore_id());
 
-        const auto& logits     = _torch_runtime->score(current_input_ids, current_att_mask);
+        const auto& logits = _torch_runtime->score(current_input_ids, current_att_mask);
 
-        const auto& loss       = process_labels(target_ids, logits);
-        const auto& log_probs  = torch::nn::functional::log_softmax(
+        const auto& loss      = process_labels(target_ids, logits);
+        const auto& log_probs = torch::nn::functional::log_softmax(
             logits, torch::nn::functional::LogSoftmaxFuncOptions(-1));
 
         torch::Tensor target_log_probs;
         if(_family == Model_Family::OpenAI)
         {
-            const auto& out_mask= input_ids
-                                  .index({Slice(std::min(std::max((unsigned long) 1, begin_loc),
-                                                         current_actual_token_end_loc),
-                                                current_actual_token_end_loc)});
-            target_log_probs =
-                log_probs
-                    .gather(-1,
-                           out_mask
-                                .unsqueeze(-1))
-                    .squeeze(-1);
+            const auto& out_mask = input_ids.index({Slice(
+                std::min(std::max((unsigned long) 1, begin_loc), current_actual_token_end_loc),
+                current_actual_token_end_loc)});
+            target_log_probs     = log_probs.gather(-1, out_mask.unsqueeze(-1)).squeeze(-1);
         }
         else
         {
@@ -198,10 +195,11 @@ Vocinity::Context_Scorer::score(const std::string& sentence, const bool per_char
 
         score.loss = loss.exp().item().toDouble();
 
-        score.sentence_probability =
-            current_actual_token_end_loc > 0
-                ? -1* std::exp(-1 * loss.item().toDouble() * (current_actual_token_end_loc - 1))
-                : 0;
+        score.sentence_probability = current_actual_token_end_loc > 0
+                                         ? -1
+                                               * std::exp(-1 * loss.item().toDouble()
+                                                          * (current_actual_token_end_loc - 1))
+                                         : 0;
         total_score.emplace_back(std::move(score));
 
         if(end_loc == sequence_length)
