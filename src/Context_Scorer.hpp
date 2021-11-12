@@ -42,18 +42,21 @@ namespace Vocinity
             /**
              * @brief max_best_num_alternatives should be set 0 for getting all.
              */
-            ushort max_best_num_alternatives = 1;
+            ushort max_best_num_alternatives = 2;
 
             /**
              * @brief max_distance is length of query word if -1
              */
             short max_distance              = 1;
             /**
-             * @brief dismissed_word_indices will be used after splitting words by a single space. dismissed_words wont be processed.
+             * @brief dismissed_word_indices will be used after splitting words by a single space.
+             * Dismissed words wont be processed.
              */
             std::vector<ushort> dismissed_word_indices;
             /**
-             * @brief dismissed_words wont be processed. Case insensitive.
+             * @brief dismissed_words wont be processed. Case insensitive. Can be used with
+             * dismissed_word_indices together but using only one of them for this
+             * purpose is enough.
              */
             std::vector<std::string> dismissed_words;
             /**
