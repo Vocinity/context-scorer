@@ -28,7 +28,7 @@ Visual Studio: NO
 ### Dependencies
 
 #### Context_Scorer
-- lib_Context_Scorer 
+- lib_Context-Scorer 
 
 #### lib_Context-Scorer
 - [aMisc](https://github.com/Vocinity/aMisc)
@@ -37,7 +37,7 @@ Visual Studio: NO
   - RANGE_V3 *is optional for pre-C++20. (If you suffer from [compiler seg fault](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=96720), disable RANGE_V3 and use C++20)*
   - JSON *is a must.*
   - PYSTRING or RANGE_V3 or c++23 support *is needed.*
-  - LEVENSHTEIN_SSE or RAPIDFUZZ_CPP *is needed.*
+  - LEVENSHTEIN_SSE or RAPIDFUZZ_CPP *or both would be nice.*
   - SOUNDEX *is optional.*
   - DOUBLE_METAPHONE *is optional.*
 
