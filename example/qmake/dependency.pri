@@ -3,28 +3,26 @@ unix {
 
     MY_BUILD_PATH=$${OUT_PWD}/../qmake/bin/
     CONFIG(release, debug|release) {
-        CUDA_AVAILABLE{LIBS += -L$${MY_BUILD_PATH}/ -l:lib-Context-Scorer_cu.so}
+        CUDA_AVAILABLE{LIBS += -L$${MY_BUILD_PATH}/ -l_Context-Scorer_cu}
         else{
             CL_AVAILABLE{
-                LIBS += -L$${MY_BUILD_PATH}/ -l:lib-Context-Scorer_cl.so
+                LIBS += -L$${MY_BUILD_PATH}/ -l_Context-Scorer_cl
             }else{
-                LIBS += -L$${MY_BUILD_PATH}/ -l:lib-Context-Scorer_cpu.so
+                LIBS += -L$${MY_BUILD_PATH}/ -l_Context-Scorer_cpu
             }
         }
     }
 
     CONFIG(debug, debug|release) {
-        CUDA_AVAILABLE{LIBS += -L$${MY_BUILD_PATH} -l:lib-Context-Scorer_cu+dbg.so}
+        CUDA_AVAILABLE{LIBS += -L$${MY_BUILD_PATH} -l_Context-Scorer_cu+dbg}
         else{
             CL_AVAILABLE{
-                LIBS += -L$${MY_BUILD_PATH}/ -l:lib-Context-Scorer_cl+dbg.so
+                LIBS += -L$${MY_BUILD_PATH}/ -l_Context-Scorer_cl+dbg
             }else{
-                LIBS += -L$${MY_BUILD_PATH}/ -l:lib-Context-Scorer_cpu+dbg.so
+                LIBS += -L$${MY_BUILD_PATH}/ -l_Context-Scorer_cpu+dbg
                 }
             }
     }
-
-    LIBS+= -lsox
 
     !ON_CONAN{
         CENTOS{

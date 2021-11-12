@@ -8,12 +8,12 @@ DESTDIR=bin
 
 unix {
     CONFIG(release, debug|release) {
-        CUDA_AVAILABLE{TARGET = Context_Scorer_cu}
+        CUDA_AVAILABLE{TARGET = Context-Scorer_cu}
         else{
             CL_AVAILABLE{
-                TARGET = Context_Scorer_cl
+                TARGET = Context-Scorer_cl
             }else{
-                TARGET = Context_Scorer_cpu
+                TARGET = Context-Scorer_cpu
             }
         }
     }
@@ -22,9 +22,9 @@ unix {
         CUDA_AVAILABLE{TARGET = Context-Scorer_cu+dbg}
         else{
             CL_AVAILABLE{
-                TARGET = Context_Scorer_cl+dbg
+                TARGET = Context-Scorer_cl+dbg
             }else{
-                TARGET = Context_Scorer_cpu+dbg
+                TARGET = Context-Scorer_cpu+dbg
             }
         }
     }

@@ -10,23 +10,23 @@ unix {
     INCLUDE_DIR=$${DEPL_ROOT}/include/akil/
 
     CONFIG(release, debug|release) {
-        CUDA_AVAILABLE{TARGET = _Context_Scorer_cu}
+        CUDA_AVAILABLE{TARGET = _Context-Scorer_cu}
         else{
             CL_AVAILABLE{
-                TARGET = _Context_Scorer_cl
+                TARGET = _Context-Scorer_cl
             }else{
-                TARGET = _Context_Scorer_cpu
+                TARGET = _Context-Scorer_cpu
             }
         }
     }
 
     CONFIG(debug, debug|release) {
-        CUDA_AVAILABLE{TARGET = _Context_Scorer_cu+dbg}
+        CUDA_AVAILABLE{TARGET = _Context-Scorer_cu+dbg}
         else{
             CL_AVAILABLE{
-                TARGET = _Context_Scorer_cl+dbg
+                TARGET = _Context-Scorer_cl+dbg
             }else{
-                TARGET = _Context_Scorer_cpu+dbg
+                TARGET = _Context-Scorer_cpu+dbg
             }
         }
     }

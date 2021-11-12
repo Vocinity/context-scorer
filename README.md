@@ -30,13 +30,16 @@ Visual Studio: NO
 #### Context_Scorer
 - lib_Context_Scorer 
 
-#### lib_Context_Scorer
+#### lib_Context-Scorer
 - [aMisc](https://github.com/Vocinity/aMisc)
   - TORCH *is mandatory.*
   - MAGIC_ENUM *is a must.*
   - RANGE_V3 *is optional for pre-C++20. (If you suffer from [compiler seg fault](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=96720), disable RANGE_V3 and use C++20)*
   - JSON *is a must.*
-  - ROBIN_HOOD_HASHING *is a must.*
+  - PYSTRING or RANGE_V3 or c++23 support *is needed.*
+  - LEVENSHTEIN_SSE or RAPIDFUZZ_CPP *is needed.*
+  - SOUNDEX *is optional.*
+  - DOUBLE_METAPHONE *is optional.*
 
 ### Building
 Did you install aMisc? Congrats, then already you did almost all the job.
@@ -62,18 +65,23 @@ make install
 | ```DEPS_ROOT```             | ```/opt/local```   | Where to consume dependencies. You can also set it as environment variable. As a QMake argument: `qmake /path/to/ProFile.pro "DEPS_ROOT=/usr/local"` and qmake argument overrides env var. If env var is not set and qmake argument is omitted, it will be set as `/opt/local/`.
 | ```DEPL_ROOT```             | ```/opt/local```   | Where to install artifacts. You can also set it as environment variable. As a QMake argument: `qmake /path/to/ProFile.pro "DEPL_ROOT=/usr/local"` and qmake argument overrides env var. If env var is not set and qmake argument is omitted, it will be set as `/opt/local/`.
 | ```FAKE_INSTALL```          | ```empty```        | Way to have an independent build root for packaging without affecting `make install` procedure. Only copies runtime materials like executables and libraries without headers and inclusion helpers. You can also set it as environment variable. As a QMake argument: `qmake /path/to/ProFile.pro "FAKE_INSTALL=/usr/local"` and qmake argument overrides env var. If env var is not set and qmake argument is omitted, it will be set as `/opt/local/`.
-| ```PKG_BUILD_ROOT```            | ```empty```        | If you are installing into the build root, you need to provide this argument or environment variable to be able to use inclusion helpers from real install root in runtime. As a QMake argument: `qmake /path/to/ProFile.pro "PKG_BUILD_ROOT=/usr/local"` and qmake argument overrides env var. For example you should set `PKG_BUILD_ROOT=/home/user/build_root` and `DEPL_ROOT=/opt/local`
+| ```PKG_BUILD_ROOT```        | ```empty```        | If you are installing into the build root, you need to provide this argument or environment variable to be able to use inclusion helpers from real install root in runtime. As a QMake argument: `qmake /path/to/ProFile.pro "PKG_BUILD_ROOT=/usr/local"` and qmake argument overrides env var. For example you should set `PKG_BUILD_ROOT=/home/user/build_root` and `DEPL_ROOT=/opt/local`
 
 | **Switch**                  | **Default Value**  |**By Default**                         |
 |:---------------------------:|:------------------:|:-------------------------------------:|
 | ```debug```                 | ```0```            | by default, release binary will be produced. Note that `debug` word is all lowercase.
-| ```unversioned_libname```                    | ```0```            | by default, version, datetime and commit hash will be appended to the output and symlinks will be produced. Note that `debug` word is all lowercase.
+| ```unversioned_libname```   | ```0```            | by default, version, datetime and commit hash will be appended to the output and symlinks will be produced. Note that `debug` word is all lowercase.
 | ```CPP17```                 | ```0```            | CPP20 is used
 | ```CENTOS```                | ```0```            | If 1 (so you passed), sox will be included from `/usr/include/sox` instead of ubuntu's `/usr/include/`.
 | ```GCC8```                  | ```0```            | default gcc wil be used.
 | ```GCC9```                  | ```0```            | /\
 | ```GCC10```                 | ```0```            | /\
 | ```GCC11```                 | ```0```            | /\
+| ```PYSTRING_OFF```          | ```0```            | /\
+| ```DOUBLE_METAPHONE_OFF```  | ```0```            | /\
+| ```SOUNDEX_OFF```           | ```0```            | /\
+| ```RAPIDFUZZ_CPP_OFF```     | ```0```            | /\
+| ```LEVENSHTEIN_SSE_OFF```   | ```0```            | /\
 | ```LTO_OFF```               | ```0```            | enabled by default. If you have a mysterious seg fault in linker, this is way to go.
 | ```CCACHE_OFF```            | ```0```            | using this switch is disabling ccache usage.
 | ```GCC_CHECK_OFF```         | ```0```            | C++ standard is deduced automatically from gcc version. Disable querying gcc version for supported c++ standard if you have a weird configuration that old gcc is overriding the new one and you are sure there is desired CPP17/20 support.
@@ -104,21 +112,21 @@ make install
 
 *One* of below depending relese|debug build and hw acceleration backend.
 ```
-DEPL_ROOT/bin/akil/Context_Scorer_cu
-DEPL_ROOT/bin/akil/Context_Scorer_cl
-DEPL_ROOT/bin/akil/Context_Scorer_cpu
-DEPL_ROOT/bin/akil/Context_Scorer_cu+dbg
-DEPL_ROOT/bin/akil/Context_Scorer_cl+dbg
-DEPL_ROOT/bin/akil/Context_Scorer_cpu+dbg
+DEPL_ROOT/bin/akil/Context-Scorer_cu
+DEPL_ROOT/bin/akil/Context-Scorer_cl
+DEPL_ROOT/bin/akil/Context-Scorer_cpu
+DEPL_ROOT/bin/akil/Context-Scorer_cu+dbg
+DEPL_ROOT/bin/akil/Context-Scorer_cl+dbg
+DEPL_ROOT/bin/akil/Context-Scorer_cpu+dbg
 ```
 > lib_Context_Scorer
 
 Release build of the commit 6691d7dcfeb5076db749a0cba25b48cfe5395379@branch and cpu backend would install:
 ```
-DEPL_ROOT/lib/akil/lib_Context_Scorer_cpu.so
-DEPL_ROOT/lib/akil/lib_Context_Scorer_cpu.so.2021-08-05_19:02@6691d7dcfeb5076db749a0cba25b48cfe5395379
-DEPL_ROOT/lib/akil/lib_Context_Scorer_cpu.so.2021-08-05_19:02@6691d7dcfeb5076db749a0cba25b48cfe5395379.0
-DEPL_ROOT/lib/akil/lib_Context_Scorer.so.2021-08-05_19:02@6691d7dcfeb5076db749a0cba25b48cfe5395379.0.0
+DEPL_ROOT/lib/akil/lib_Context-Scorer_cpu.so
+DEPL_ROOT/lib/akil/lib_Context-Scorer_cpu.so.2021-08-05_19:02@6691d7dcfeb5076db749a0cba25b48cfe5395379
+DEPL_ROOT/lib/akil/lib_Context-Scorer_cpu.so.2021-08-05_19:02@6691d7dcfeb5076db749a0cba25b48cfe5395379.0
+DEPL_ROOT/lib/akil/lib_Context-Scorer.so.2021-08-05_19:02@6691d7dcfeb5076db749a0cba25b48cfe5395379.0.0
 
 DEPL_ROOT/include/akil/Context_Scorer.hpp
 
@@ -271,12 +279,11 @@ source /opt/rh/gcc-toolset-10/enable
   - OCV_OFF because we dont need it for Noise Reduction and it is an external dependency that requires you to compile yourself.
   - CL_OFF because we dont need OpenCL availability in CUDA build.
   - NO_CONAN because we are using yum.
-  - QT_OFF so we just need qmake, we do not need Qt framework libraries for Noise Reduction.
-  - CENTOS because of Centos.
+  - QT_OFF so we just need qmake, we do not need Qt framework libraries for Context Scorer.
   - LTO_OFF because your compiler is a dumb.
 
  ```bash
-qmake-qt5 .. CONFIG+=RANGE_V3_OFF CONFIG+=OCV_OFF CONFIG+=USE_TORCH_CUDA_RT CONFIG+=CL_OFF CONFIG+=NO_CONAN CONFIG+=QT_OFF CONFIG+=CENTOS CONFIG+=LTO_OFF
+qmake-qt5 .. CONFIG+=RANGE_V3_OFF CONFIG+=OCV_OFF CONFIG+=USE_TORCH_CUDA_RT CONFIG+=CL_OFF CONFIG+=NO_CONAN CONFIG+=QT_OFF CONFIG+=LTO_OFF
 ```
 
 
@@ -303,11 +310,10 @@ cd build
   - USE_TORCH_CUDA_RT because you are getting a mysterios cublas crash in your environment.
   - CL_OFF because we dont need OpenCL availability in CUDA build.
   - NO_CONAN because we are using yum.
-  - CENTOS because of Centos.
   - LTO is off because you know why.
 
  ```bash
-qmake-qt5 .. CONFIG+=RANGE_V3_OFF CONFIG+=USE_TORCH_CUDA_RT CONFIG+=CL_OFF CONFIG+=NO_CONAN CONFIG+=CENTOS CONFIG+=LTO_OFF
+qmake-qt5 .. CONFIG+=RANGE_V3_OFF CONFIG+=USE_TORCH_CUDA_RT CONFIG+=CL_OFF CONFIG+=NO_CONAN CONFIG+=LTO_OFF
 ```
 * Build Context Scorer:
 ```bash

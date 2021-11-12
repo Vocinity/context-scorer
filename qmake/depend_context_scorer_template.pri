@@ -4,23 +4,23 @@ unix {
     include($${NR_DEPS_ROOT}/share/akil/qmake/dependMisc.pri)
 
     CONFIG(release, debug|release) {
-        CUDA_AVAILABLE{LIBS += -L$${MY_DEPL_ROOT}/lib/akil -l_Context_Scorer_cu}
+        CUDA_AVAILABLE{LIBS += -L$${MY_DEPL_ROOT}/lib/akil -l:lib-Context-Scorer_cu.so}
         else{
             CL_AVAILABLE{
-                LIBS += -L$${MY_DEPL_ROOT}/lib/akil -l_Context_Scorer_cl
+                LIBS += -L$${MY_DEPL_ROOT}/lib/akil -l:lib-Context-Scorer_cl.so
             }else{
-                LIBS += -L$${MY_DEPL_ROOT}/lib/akil -l_Context_Scorer_cpu
+                LIBS += -L$${MY_DEPL_ROOT}/lib/akil -l:lib-Context-Scorer_cpu.so
             }
         }
     }
 
     CONFIG(debug, debug|release) {
-        CUDA_AVAILABLE{LIBS += -L$${MY_DEPL_ROOT}/lib/akil -l_Context_Scorer_cu+dbg}
+        CUDA_AVAILABLE{LIBS += -L$${MY_DEPL_ROOT}/lib/akil -l:lib-Context-Scorer_cu+dbg.so}
         else{
             CL_AVAILABLE{
-                LIBS += -L$${MY_DEPL_ROOT}/lib/akil -l_Context_Scorer_cl+dbg
+                LIBS += -L$${MY_DEPL_ROOT}/lib/akil -l:lib-Context-Scorer_cl+dbg.so
             }else{
-                LIBS += -L$${MY_DEPL_ROOT}/lib/akil -l_Context_Scorer_cpu+dbg
+                LIBS += -L$${MY_DEPL_ROOT}/lib/akil -l:lib-Context-Scorer_cpu+dbg.so
                 }
             }
     }
