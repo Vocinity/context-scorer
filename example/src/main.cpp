@@ -320,7 +320,7 @@ main(int argc, char* argv[])
         }
         else
         {
-            std::cout <<"Mean perplexity: " <<entry.second.mean << " | " << entry.first << std::endl<< std::endl;
+            std::cout <<"mean perplexity: " <<entry.second.mean << " | " << entry.first << std::endl<< std::endl;
         }
     }
 
