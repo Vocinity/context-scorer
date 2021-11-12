@@ -116,8 +116,8 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
             }
             else
             {
-                std::cout << "Dictionary does not contain pronounciation for " << query_word
-                          << std::endl;
+//                std::cout << "Dictionary does not contain pronounciation for " << query_word
+//                          << std::endl;
                 return result;
             }
         }
@@ -133,96 +133,95 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
             result = get_alternatives_by_metaphone(query_word);
         }
 #endif
+
+        if(parallel)
+        {
+#ifdef CPP17_AVAILABLE
+            std::sort(std::execution::par_unseq,
+                      result.begin(),
+                      result.end(),
+                      [](const Alternative_Word& one, const Alternative_Word& another) -> bool
+                      {
+                          const auto& [_, first_distance, first_op]    = one;
+                          const auto& [__, second_distance, second_op] = another;
+                          const auto abs_first  = std::abs(first_distance);
+                          const auto abs_second = std::abs(second_distance);
+                          if(abs_first == abs_second)
+                          {
+                              if(first_op == "~" and (second_op not_eq "~"))
+                              {
+                                  return true;
+                              }
+                              else if((first_op not_eq "~") and (second_op not_eq "~"))
+                              {
+                                  if(first_op == "-" and second_op == "+")
+                                  {
+                                      return true;
+                                  }
+                              }
+                          }
+                          return abs_first < abs_second;
+                      });
+#else
+            __gnu_parallel::sort(
+                result.begin(),
+                result.end(),
+                [](const Alternative_Word& one, const Alternative_Word& another) -> bool
+                {
+                    const auto& [_, first_distance, first_op]    = one;
+                    const auto& [__, second_distance, second_op] = another;
+                    const auto abs_first                         = std::abs(first_distance);
+                    const auto abs_second                        = std::abs(second_distance);
+                    if(abs_first == abs_second)
+                    {
+                        if(first_op == "~" and (second_op not_eq "~"))
+                        {
+                            return true;
+                        }
+                        else if((first_op not_eq "~") and (second_op not_eq "~"))
+                        {
+                            if(first_op == "-" and second_op == "+")
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                    return abs_first < abs_second;
+                });
+#endif
+        }
+        else
+        {
+            std::sort(result.begin(),
+                      result.end(),
+                      [](const Alternative_Word& one, const Alternative_Word& another) -> bool
+                      {
+                          const auto& [_, first_distance, first_op]    = one;
+                          const auto& [__, second_distance, second_op] = another;
+                          const auto abs_first  = std::abs(first_distance);
+                          const auto abs_second = std::abs(second_distance);
+                          if(abs_first == abs_second)
+                          {
+                              if(first_op == "~" and (second_op not_eq "~"))
+                              {
+                                  return true;
+                              }
+                              else if((first_op not_eq "~") and (second_op not_eq "~"))
+                              {
+                                  if(first_op == "-" and second_op == "+")
+                                  {
+                                      return true;
+                                  }
+                              }
+                          }
+                          return abs_first < abs_second;
+                      });
+        }
+
         if(instructions.max_best_num_alternatives)
         {
             if(result.size() > instructions.max_best_num_alternatives)
             {
-                if(parallel)
-                {
-#ifdef CPP17_AVAILABLE
-                    std::sort(std::execution::par_unseq,
-                              result.begin(),
-                              result.end(),
-                              [](const Alternative_Word& one,
-                                 const Alternative_Word& another) -> bool
-                              {
-                                  const auto& [_, first_distance, first_op]    = one;
-                                  const auto& [__, second_distance, second_op] = another;
-                                  const auto abs_first  = std::abs(first_distance);
-                                  const auto abs_second = std::abs(second_distance);
-                                  if(abs_first == abs_second)
-                                  {
-                                      if(first_op == "~" and (second_op not_eq "~"))
-                                      {
-                                          return true;
-                                      }
-                                      else if((first_op not_eq "~") and (second_op not_eq "~"))
-                                      {
-                                          if(first_op == "-" and second_op == "+")
-                                          {
-                                              return true;
-                                          }
-                                      }
-                                  }
-                                  return abs_first < abs_second;
-                              });
-#else
-                    __gnu_parallel::sort(
-                        result.begin(),
-                        result.end(),
-                        [](const Alternative_Word& one,
-                           const Alternative_Word& another) -> bool
-                        {
-                            const auto& [_, first_distance, first_op]    = one;
-                            const auto& [__, second_distance, second_op] = another;
-                            const auto abs_first  = std::abs(first_distance);
-                            const auto abs_second = std::abs(second_distance);
-                            if(abs_first == abs_second)
-                            {
-                                if(first_op == "~" and (second_op not_eq "~"))
-                                {
-                                    return true;
-                                }
-                                else if((first_op not_eq "~") and (second_op not_eq "~"))
-                                {
-                                    if(first_op == "-" and second_op == "+")
-                                    {
-                                        return true;
-                                    }
-                                }
-                            }
-                            return abs_first < abs_second;
-                        });
-#endif
-                }
-                else
-                {
-                    std::sort(result.begin(),
-                              result.end(),
-                              [](const Alternative_Word& one,
-                                 const Alternative_Word& another) -> bool
-                              {
-                                  const auto& [_, first_distance, first_op]    = one;
-                                  const auto& [__, second_distance, second_op] = another;
-                                  const auto abs_first  = std::abs(first_distance);
-                                  const auto abs_second = std::abs(second_distance);
-                                  if(abs_first == abs_second)
-                                  {
-                                      if(first_op == "~" and (second_op not_eq "~"))
-                                      {
-                                          return true;
-                                      }
-                                      else if((first_op not_eq "~") and (second_op not_eq "~"))
-                                      {
-                                          if(first_op == "-" and second_op == "+")
-                                          {
-                                              return true;
-                                          }
-                                      }
-                                  }
-                                  return abs_first < abs_second;
-                              });
-                }
                 result.resize(instructions.max_best_num_alternatives);
             }
         }
@@ -272,6 +271,12 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
             _double_metaphone_encoding_by_word)
         {
             if(query_word == dictionary_word)
+            {
+                continue;
+            }
+
+            const bool has_parenthesis = akil::string::contains(dictionary_word, ')');
+            if(has_parenthesis)
             {
                 continue;
             }
@@ -338,6 +343,12 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                 continue;
             }
 
+            const bool has_parenthesis = akil::string::contains(dictionary_word, ')');
+            if(has_parenthesis)
+            {
+                continue;
+            }
+
             if(dictionary_code == query_code)
             {
                 result.push_back(
@@ -361,21 +372,24 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
             _phonemes_by_word.at(query_word);
 
         const ushort max_distance =
-            instructions.max_distance ? instructions.max_distance : query_phonemes_count;
+            instructions.max_distance>-1 ? instructions.max_distance : query_phonemes_count;
         for(const auto& [dictionary_word, dictionary_pronounciation_info] : _phonemes_by_word)
         {
+            const bool has_parenthesis = akil::string::contains(dictionary_word, ')');
+            if(has_parenthesis)
+            {
+                continue;
+            }
+
             const auto& [dictionary_word_pronounciation,
                          dictionary_word_phonemes,
                          dictionary_word_phonemes_count] = dictionary_pronounciation_info;
-            const bool has_parenthesis = akil::string::contains(dictionary_word, ')');
+
             if(dictionary_word_pronounciation == query_pronounciation
                and dictionary_word not_eq query_word)
             {
-                if(not has_parenthesis)
-                {
-                    result.push_back({dictionary_word, 0, "~"});
-                    continue;
-                }
+                result.push_back({dictionary_word, 0, "~"});
+                continue;
             }
 
             if(dictionary_word == query_word)
@@ -385,27 +399,28 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
 
             const auto& levenshtein_difference = akil::string::levenshtein_difference(
                 query_pronounciation, dictionary_word_pronounciation);
-            if(levenshtein_difference.size() < max_distance)
+            if(levenshtein_difference.size() <= max_distance)
             {
-                ushort additions=0,removals=0,replacements=0;
+                ushort additions = 0, removals = 0, replacements = 0;
                 for(const auto& ops : levenshtein_difference)
                 {
-                    if(ops.type==rapidfuzz::LevenshteinEditType::Insert)
+                    if(ops.type == rapidfuzz::LevenshteinEditType::Insert)
                     {
                         ++additions;
                     }
-                    else if(ops.type==rapidfuzz::LevenshteinEditType::Delete)
+                    else if(ops.type == rapidfuzz::LevenshteinEditType::Delete)
                     {
                         ++removals;
                     }
-                    else if(ops.type==rapidfuzz::LevenshteinEditType::Replace)
+                    else if(ops.type == rapidfuzz::LevenshteinEditType::Replace)
                     {
                         ++replacements;
                     }
                 }
 
-                const std::string& final_op= additions>removals ? (additions>replacements ? "+" : "~")
-                                                         : (removals>replacements ? "-" : "~");
+                const std::string& final_op = additions > removals
+                                                  ? (additions > replacements ? "+" : "~")
+                                                  : (removals > replacements ? "-" : "~");
                 result.push_back({dictionary_word, levenshtein_difference.size(), final_op});
             }
         }
@@ -421,22 +436,25 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
             _phonemes_by_word.at(query_word);
 
         const ushort max_distance =
-            instructions.max_distance ? instructions.max_distance : query_phonemes_count;
+            instructions.max_distance>-1 ? instructions.max_distance : query_phonemes_count;
         for(const auto& [dictionary_word, dictionary_pronounciation_info] : _phonemes_by_word)
         {
+            const bool has_parenthesis = akil::string::contains(dictionary_word, ')');
+            if(has_parenthesis)
+            {
+                //ignores multiple pronunciations
+                continue;
+            }
+
             const auto& [dictionary_word_pronounciation,
                          dictionary_word_phonemes,
                          dictionary_word_phonemes_count] = dictionary_pronounciation_info;
 
-            const bool has_parenthesis = akil::string::contains(dictionary_word, ')');
             if(dictionary_word_pronounciation == query_pronounciation
                and dictionary_word not_eq query_word)
             {
-                if(not has_parenthesis)
-                {
-                    result.push_back({dictionary_word, 0, "~"});
-                    continue;
-                }
+                result.push_back({dictionary_word, 0, "~"});
+                continue;
             }
 
             const ushort num_of_common_phonemes =
@@ -454,10 +472,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                 if(num_of_common_phonemes == query_phonemes_count
                    and dictionary_word_phonemes_count == (query_phonemes_count + distance))
                 {
-                    if(!has_parenthesis)
-                    { //ignores multiple pronunciations
-                        result.push_back({dictionary_word, distance, "+"});
-                    }
+                    result.push_back({dictionary_word, distance, "+"});
                 }
 
                 //if the amount of similar Phonemes in w and the dictionary word is
@@ -467,10 +482,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                         and dictionary_word_phonemes_count
                                 == (query_phonemes_count - distance))
                 {
-                    if(!has_parenthesis)
-                    { //ignores multiple pronunciations
-                        result.push_back({dictionary_word, distance, "-"});
-                    }
+                    result.push_back({dictionary_word, distance, "-"});
                 }
 
                 //if the amount of similar Phonemes in w and the dictionary word is one less
@@ -487,12 +499,9 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                                                    true);
                     if(ordered_common_phonemes == query_phonemes_count - distance)
                     {
-                        if(!has_parenthesis)
-                        { //ignores multiple pronunciations
-                            result.push_back({dictionary_word,
-                                              query_phonemes_count - ordered_common_phonemes,
-                                              "~"});
-                        }
+                        result.push_back({dictionary_word,
+                                          query_phonemes_count - ordered_common_phonemes,
+                                          "~"});
                     }
                 }
             }

@@ -43,7 +43,8 @@ namespace Vocinity
              * @brief max_best_num_alternatives should be set 0 for getting all.
              */
             ushort max_best_num_alternatives = 0;
-            ushort max_distance              = 0;
+
+            short max_distance              = -1;
             /**
              * @brief dismissed_word_indices will be used after splitting words by a single space.
              */
