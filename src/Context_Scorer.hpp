@@ -15,7 +15,7 @@ namespace Vocinity
         using Pronounciation = std::string;
         using Distance       = short;
         /**
-         * + is addition, - is deletion, ~ is either nothing or substitution.
+         * + is addition, - is deletion, ~ is either nothing (when distance is zero) or substitution.
          */
         using Op                            = std::string;
         using Alternative_Word              = std::tuple<std::string, Distance, Op>;
@@ -24,15 +24,15 @@ namespace Vocinity
 
         enum class Matching_Method: short
         {
-            Phoneme_Transcription=0
+            Phoneme_Transcription=0 // Most Accurate and Slow
 #ifdef LEVENSHTEIN_AVAILABLE
-            ,Phoneme_Levenshtein=1
+            ,Phoneme_Levenshtein=1 // Slowest and Accurate
 #endif
 #ifdef SOUNDEX_AVAILABLE
-            ,Soundex=2
+            ,Soundex=2 // Faster, Least Accurate
 #endif
 #ifdef DOUBLE_METAPHONE_AVAILABLE
-            ,Double_Metaphone=3
+            ,Double_Metaphone=3 // Fastest, Less Acurate
 #endif
         };
 
@@ -42,17 +42,23 @@ namespace Vocinity
             /**
              * @brief max_best_num_alternatives should be set 0 for getting all.
              */
-            ushort max_best_num_alternatives = 0;
+            ushort max_best_num_alternatives = 1;
 
-            short max_distance              = -1;
             /**
-             * @brief dismissed_word_indices will be used after splitting words by a single space.
+             * @brief max_distance is length of query word if -1
              */
-            std::vector<uint64_t> dismissed_word_indices;
+            short max_distance              = 1;
+            /**
+             * @brief dismissed_word_indices will be used after splitting words by a single space. dismissed_words wont be processed.
+             */
+            std::vector<ushort> dismissed_word_indices;
             /**
              * @brief dismissed_words wont be processed. Case insensitive.
              */
             std::vector<std::string> dismissed_words;
+            /**
+             * @brief See Vocinity::Matching_Method::Homophonic_Alternative_Composer items for explanation.
+             */
             Matching_Method method = Matching_Method::Phoneme_Transcription;
         };
 

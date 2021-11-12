@@ -353,7 +353,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
             {
                 result.push_back(
                     {dictionary_word,
-                     std::abs((short) (query_word.size() - dictionary_word.size())),
+                     0/*std::abs((short) (query_word.size() - dictionary_word.size()))*/,
                      "~"});
             }
         }
@@ -663,18 +663,18 @@ Vocinity::Homophonic_Alternative_Composer::get_alternatives(const std::string& r
     }
 
     const auto& words = akil::string::split(uppercase_reference, ' ');
-    for(uint64_t order = 0; order < words.size(); ++order)
+    for(ushort order = 0; order < words.size(); ++order)
     {
         const auto& word = words.at(order);
         if(akil::memory::vector_contains(instructions.dismissed_word_indices, order))
         {
-            sentence_result.push_back({{word, 0, "~"}});
+            sentence_result.push_back({{}});
             continue;
         }
 
         if(akil::memory::vector_contains(instructions.dismissed_words, word))
         {
-            sentence_result.push_back({{word, 0, "~"}});
+            sentence_result.push_back({{}});
             continue;
         }
 
