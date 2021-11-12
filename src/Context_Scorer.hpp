@@ -7,40 +7,43 @@ namespace Vocinity
 {
     class Homophonic_Alternative_Composer
     {
-      private:
+    private:
         class Homophonic_Alternative_Composer_Impl;
 
-      public:
+    public:
         using Word           = std::string;
         using Pronounciation = std::string;
-        using Distance=ushort;
+        using Distance       = short;
         /**
          * + is addition, - is deletion, ~ is either nothing or substitution.
          */
-        using Op=std::string;
-        using Alternative_Word              = std::tuple<std::string, Distance,Op>;
+        using Op                            = std::string;
+        using Alternative_Word              = std::tuple<std::string, Distance, Op>;
         using Word_Alternatives             = std::vector<Alternative_Word>;
         using Alternative_Words_Of_Sentence = std::vector<Word_Alternatives>;
 
         enum class Matching_Method: short
         {
             Phoneme_Transcription=0
+#ifdef LEVENSHTEIN_AVAILABLE
+            ,Phoneme_Levenshtein=1
+#endif
 #ifdef SOUNDEX_AVAILABLE
-            ,Soundex=1
+            ,Soundex=2
 #endif
 #ifdef DOUBLE_METAPHONE_AVAILABLE
-            ,Double_Metaphone=2
+            ,Double_Metaphone=3
 #endif
         };
 
-      public:
+    public:
         struct Instructions
         {
             /**
              * @brief max_best_num_alternatives should be set 0 for getting all.
              */
-            ushort max_best_num_alternatives = 5;
-            short max_distance         = 0;
+            ushort max_best_num_alternatives = 0;
+            ushort max_distance              = 0;
             /**
              * @brief dismissed_word_indices will be used after splitting words by a single space.
              */
@@ -52,10 +55,11 @@ namespace Vocinity
             Matching_Method method = Matching_Method::Phoneme_Transcription;
         };
 
-      public:
+    public:
         explicit Homophonic_Alternative_Composer(
-            const std::filesystem::path& dictionary = "cmudict.0.7a.txt");
-    ~Homophonic_Alternative_Composer();
+                const std::filesystem::path& dictionary = "./cmudict.0.7a.txt");
+        ~Homophonic_Alternative_Composer();
+
     public:
 #ifdef SOUNDEX_AVAILABLE
         /**
@@ -63,7 +67,7 @@ namespace Vocinity
          *  <transcription,phonetic_encoding> is for phoneme matching and accepts cmudict encoding.
          */
         void set_in_memory_soundex_dictionary(
-            const std::unordered_map<std::string, std::string>& dictionary);
+                const std::unordered_map<std::string, std::string>& dictionary);
 #endif
         /**
          * @brief The dictionary is in <transcription,encoding> form.
@@ -72,7 +76,7 @@ namespace Vocinity
          *  akil::string namespace contains Soundex encoder.
          */
         void set_in_memory_phonemes_dictionary(
-            const std::unordered_map<std::string, std::string>& dictionary);
+                const std::unordered_map<std::string, std::string>& dictionary);
 #ifdef DOUBLE_METAPHONE_AVAILABLE
         /**
          * @brief The dictionary is in <transcription,encoding> form.
@@ -81,25 +85,25 @@ namespace Vocinity
          *  akil::string namespace contains Double Metaphone encoder.
          */
         void set_in_memory_double_metaphone_dictionary(
-            const std::unordered_map<std::string, std::pair<std::string, std::string>>&
+                const std::unordered_map<std::string, std::pair<std::string, std::string>>&
                 dictionary);
 #endif
-      public:
+    public:
         Alternative_Words_Of_Sentence get_alternatives(const std::string& reference,
                                                        const Instructions& instructions,
                                                        const bool parallel = false);
 
-      private:
+    private:
         std::unique_ptr<Homophonic_Alternative_Composer_Impl> _impl;
     };
 
     class Tokenizer;
     class Context_Scorer
     {
-      private:
+    private:
         class Scorer_Backend;
 
-      public:
+    public:
         enum class Inference_Backend : short { CPU = 0, CUDA = 1 };
         /**
          * OpenAI family is for GPT and all variants of GPT2 including distilgpt2.
@@ -107,13 +111,13 @@ namespace Vocinity
          */
         enum class Model_Family : short { OpenAI = 0, Neo = 1 };
 
-      public:
+    public:
         using Input_Ids         = torch::Tensor;
         using Attention_Mask    = torch::Tensor;
         using Actual_Token_Size = uint64_t;
         using Encoded_Sequence  = std::tuple<Input_Ids, Attention_Mask, Actual_Token_Size>;
 
-      public:
+    public:
         struct Score
         {
             double negative_log_likelihood = 0;
@@ -151,20 +155,20 @@ namespace Vocinity
             std::string mask_token_str;
         };
 
-      public:
+    public:
         static void optimize_parallelization_policy_for_use_of_multiple_instances();
         static void optimize_parallelization_policy_for_use_of_single_instance();
 
-      public:
+    public:
         explicit Context_Scorer(
-            const std::filesystem::path& scorer_model_path,
-            const Model_Family& family                   = Model_Family::OpenAI,
-            const Tokenizer_Configuration& encoding_conf = {}
-#ifdef CUDA_AVAILABLE
-            ,
-            const Inference_Backend device = Inference_Backend::CPU
-#endif
-        );
+                const std::filesystem::path& scorer_model_path,
+                const Model_Family& family                   = Model_Family::OpenAI,
+                const Tokenizer_Configuration& encoding_conf = {}
+                                                       #ifdef CUDA_AVAILABLE
+                                                               ,
+                const Inference_Backend device = Inference_Backend::CPU
+                                         #endif
+                                                 );
 
         Score score(const std::string& sentence, const bool per_char_normalized = false);
 
@@ -172,11 +176,11 @@ namespace Vocinity
         Context_Scorer(const Context_Scorer& other) = delete;
         Context_Scorer& operator=(const Context_Scorer&) = delete;
 
-      private:
+    private:
         at::Tensor process_labels(const torch::Tensor& labels, const torch::Tensor& logits);
         Encoded_Sequence encode(const std::string& sentence, const bool parallel = false);
 
-      private:
+    private:
         std::unique_ptr<Scorer_Backend> _torch_runtime;
         c10::DeviceType _device = torch::kCPU;
         std::mutex _instance_mutex;

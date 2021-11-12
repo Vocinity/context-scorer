@@ -2,8 +2,6 @@
 
 class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer_Impl
 {
-    using In_Memory_Dictionary = std::unordered_map<std::string, std::string>;
-
   public:
     explicit Homophonic_Alternative_Composer_Impl(const std::filesystem::path& dictionary)
     {
@@ -14,6 +12,11 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
             constexpr std::string_view delim{"  "};
             for(std::string line, word, pronounciation; std::getline(dictionary_file, line);)
             {
+                if(akil::string::contains(line, ";;;"))
+                {
+                    continue;
+                }
+
                 const auto parts = akil::string::split(line, delim.data());
                 if(parts.size() == 2)
                 {
@@ -24,7 +27,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                 {
                     std::cout << dictionary
                               << " is corrupted, 3 items expected in each line,\n entry of: |"
-                              << line << "| is ignored";
+                              << line << "| is ignored" << std::endl;
                 }
                 const auto& phonemes    = get_phonemes(pronounciation);
                 _phonemes_by_word[word] = {pronounciation, phonemes, phonemes.size()};
@@ -36,7 +39,8 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
     {}
 
   public:
-    void set_in_memory_phonemes_dictionary(const In_Memory_Dictionary& dictionary)
+    void set_in_memory_phonemes_dictionary(
+        const std::unordered_map<std::string, std::string>& dictionary)
     {
         _phonemes_by_word.clear();
         for(const auto& [word, pronounciation] : dictionary)
@@ -46,7 +50,8 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
         }
     }
 #ifdef SOUNDEX_AVAILABLE
-    void set_in_memory_soundex_dictionary(const In_Memory_Dictionary& dictionary)
+    void set_in_memory_soundex_dictionary(
+        const std::unordered_map<std::string, std::string>& dictionary)
     {
         _soundex_encoding_by_word = dictionary;
     }
@@ -65,58 +70,69 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
         const bool parallel)
     {
         Vocinity::Homophonic_Alternative_Composer::Word_Alternatives result;
-
-        bool empty_dict = false;
-        bool exists     = false;
-        if(instructions.method == Matching_Method::Phoneme_Transcription)
+        if(_phonemes_by_word.empty() and _double_metaphone_encoding_by_word.empty()
+           and _soundex_encoding_by_word.empty())
         {
-            empty_dict = _phonemes_by_word.empty();
-            if(not empty_dict)
+            std::cout << "Dictionary is empty. Either you had to pass dict path to ctor or "
+                         "set in-memory dictionary"
+                      << std::endl;
+            return result;
+        }
+
+        if(instructions.method == Matching_Method::Phoneme_Transcription
+#ifdef LEVENSHTEIN_AVAILABLE
+           or instructions.method == Matching_Method::Phoneme_Levenshtein
+#endif
+
+        )
+        {
+            bool exists = false;
+            if(not _phonemes_by_word.empty())
             {
                 exists = _phonemes_by_word.contains(query_word);
             }
             else
             {
-                result = get_alternatives_by_phoneme(query_word, instructions);
+                std::cout
+                    << "Dictionary is empty. Either you had to pass dict path to ctor or "
+                       "set in-memory dictionary"
+                    << std::endl;
+                return result;
+            }
+
+            if(exists)
+            {
+#ifdef LEVENSHTEIN_AVAILABLE
+                if(instructions.method == Matching_Method::Phoneme_Levenshtein)
+                {
+                    result = get_alternatives_by_phoneme_levenshtein(query_word, instructions);
+                }
+                else
+#endif
+                {
+                    result =
+                        get_alternatives_by_phoneme_transcription(query_word, instructions);
+                }
+            }
+            else
+            {
+                std::cout << "Dictionary does not contain pronounciation for " << query_word
+                          << std::endl;
+                return result;
             }
         }
+#ifdef SOUNDEX_AVAILABLE
         else if(instructions.method == Matching_Method::Soundex)
         {
-            empty_dict = _soundex_encoding_by_word.empty();
-            if(not empty_dict)
-            {
-                exists = _soundex_encoding_by_word.contains(query_word);
-            }
-            else
-            {
-                result = get_alternatives_by_soundex(query_word);
-            }
+            result = get_alternatives_by_soundex(query_word);
         }
+#endif
+#ifdef DOUBLE_METAPHONE_AVAILABLE
         else if(instructions.method == Matching_Method::Double_Metaphone)
         {
-            empty_dict = _double_metaphone_encoding_by_word.empty();
-            if(not empty_dict)
-            {
-                exists = _double_metaphone_encoding_by_word.contains(query_word);
-            }
-            else
-            {
-                result = get_alternatives_by_metaphone(query_word);
-            }
+            result = get_alternatives_by_metaphone(query_word);
         }
-
-        if(empty_dict)
-        {
-            std::cout << "Dictionary is empty. Either you had to pass dict path to ctor or "
-                         "set in-memory dictionary";
-            return {};
-        }
-
-        if(not exists)
-        {
-            return {};
-        }
-
+#endif
         if(instructions.max_best_num_alternatives)
         {
             if(result.size() > instructions.max_best_num_alternatives)
@@ -130,10 +146,25 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                               [](const Alternative_Word& one,
                                  const Alternative_Word& another) -> bool
                               {
-                                  const auto& [_, first_distance, __]        = one;
-                                  const auto& [dummy, second_distance, null] = another;
-                                  return std::fabs(first_distance)
-                                         < std::fabs(second_distance);
+                                  const auto& [_, first_distance, first_op]    = one;
+                                  const auto& [__, second_distance, second_op] = another;
+                                  const auto abs_first  = std::abs(first_distance);
+                                  const auto abs_second = std::abs(second_distance);
+                                  if(abs_first == abs_second)
+                                  {
+                                      if(first_op == "~" and (second_op not_eq "~"))
+                                      {
+                                          return true;
+                                      }
+                                      else if((first_op not_eq "~") and (second_op not_eq "~"))
+                                      {
+                                          if(first_op == "-" and second_op == "+")
+                                          {
+                                              return true;
+                                          }
+                                      }
+                                  }
+                                  return abs_first < abs_second;
                               });
 #else
                     __gnu_parallel::sort(
@@ -142,9 +173,25 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                         [](const Alternative_Word& one,
                            const Alternative_Word& another) -> bool
                         {
-                            const auto& [_, first_distance, __]        = one;
-                            const auto& [dummy, second_distance, null] = another;
-                            return std::fabs(first_distance) < std::fabs(second_distance);
+                            const auto& [_, first_distance, first_op]    = one;
+                            const auto& [__, second_distance, second_op] = another;
+                            const auto abs_first  = std::abs(first_distance);
+                            const auto abs_second = std::abs(second_distance);
+                            if(abs_first == abs_second)
+                            {
+                                if(first_op == "~" and (second_op not_eq "~"))
+                                {
+                                    return true;
+                                }
+                                else if((first_op not_eq "~") and (second_op not_eq "~"))
+                                {
+                                    if(first_op == "-" and second_op == "+")
+                                    {
+                                        return true;
+                                    }
+                                }
+                            }
+                            return abs_first < abs_second;
                         });
 #endif
                 }
@@ -155,10 +202,25 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                               [](const Alternative_Word& one,
                                  const Alternative_Word& another) -> bool
                               {
-                                  const auto& [_, first_distance, __]        = one;
-                                  const auto& [dummy, second_distance, null] = another;
-                                  return std::fabs(first_distance)
-                                         < std::fabs(second_distance);
+                                  const auto& [_, first_distance, first_op]    = one;
+                                  const auto& [__, second_distance, second_op] = another;
+                                  const auto abs_first  = std::abs(first_distance);
+                                  const auto abs_second = std::abs(second_distance);
+                                  if(abs_first == abs_second)
+                                  {
+                                      if(first_op == "~" and (second_op not_eq "~"))
+                                      {
+                                          return true;
+                                      }
+                                      else if((first_op not_eq "~") and (second_op not_eq "~"))
+                                      {
+                                          if(first_op == "-" and second_op == "+")
+                                          {
+                                              return true;
+                                          }
+                                      }
+                                  }
+                                  return abs_first < abs_second;
                               });
                 }
                 result.resize(instructions.max_best_num_alternatives);
@@ -171,25 +233,65 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
   private:
 #ifdef DOUBLE_METAPHONE_AVAILABLE
     Vocinity::Homophonic_Alternative_Composer::Word_Alternatives get_alternatives_by_metaphone(
-        const std::string& query_word) const
+        const std::string& query_word)
     {
         Vocinity::Homophonic_Alternative_Composer::Word_Alternatives result;
 
+        if(_double_metaphone_encoding_by_word.empty())
+        {
+            if(_soundex_encoding_by_word.empty())
+            {
+                if(_phonemes_by_word.empty())
+                {
+                    return {};
+                }
+                else
+                {
+                    for(const auto& [word, _] : _phonemes_by_word)
+                    {
+                        _double_metaphone_encoding_by_word[word] =
+                            akil::string::get_double_metaphone_hash(word);
+                    }
+                }
+            }
+            else
+            {
+                for(const auto& [word, _] : _soundex_encoding_by_word)
+                {
+                    _double_metaphone_encoding_by_word[word] =
+                        akil::string::get_double_metaphone_hash(word);
+                }
+            }
+        }
+
         const auto& [query_primary_code, query_alternative_code] =
-            akil::string::get_double_metaphone_hash(query_word);
+            _double_metaphone_encoding_by_word.contains(query_word)
+                ? _double_metaphone_encoding_by_word.at(query_word)
+                : akil::string::get_double_metaphone_hash(query_word);
         for(const auto& [dictionary_word, dictionary_codes] :
             _double_metaphone_encoding_by_word)
         {
+            if(query_word == dictionary_word)
+            {
+                continue;
+            }
+
             const auto& [dictionary_primary_code, dictionary_alternate_code] =
                 dictionary_codes;
             if(dictionary_primary_code == query_primary_code)
             {
-                result.push_back({dictionary_word, 0, "~"});
+                result.push_back(
+                    {dictionary_word,
+                     std::abs((short) (query_word.size() - dictionary_word.size())),
+                     "~"});
                 continue;
             }
             if(dictionary_alternate_code == query_alternative_code)
             {
-                result.push_back({dictionary_word, 0, "~"});
+                result.push_back(
+                    {dictionary_word,
+                     std::abs((short) (query_word.size() - dictionary_word.size())),
+                     "~"});
             }
         }
         return result;
@@ -197,50 +299,154 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
 #endif
 #ifdef SOUNDEX_AVAILABLE
     Vocinity::Homophonic_Alternative_Composer::Word_Alternatives get_alternatives_by_soundex(
-        const std::string& query_word) const
+        const std::string& query_word)
     {
         Vocinity::Homophonic_Alternative_Composer::Word_Alternatives result;
 
-        const auto& query_code = akil::string::get_soundex_hash(query_word);
-        for(const auto& [dictionary_word, dictionary_code] : _soundex_encoding_by_word)
+        if(_soundex_encoding_by_word.empty())
         {
-            if(dictionary_code == query_code)
+            if(_double_metaphone_encoding_by_word.empty())
             {
-                result.push_back({dictionary_word, 0, "~"});
+                if(_phonemes_by_word.empty())
+                {
+                    return {};
+                }
+                else
+                {
+                    for(const auto& [word, _] : _phonemes_by_word)
+                    {
+                        _soundex_encoding_by_word[word] = akil::string::get_soundex_hash(word);
+                    }
+                }
+            }
+            else
+            {
+                for(const auto& [word, _] : _double_metaphone_encoding_by_word)
+                {
+                    _soundex_encoding_by_word[word] = akil::string::get_soundex_hash(word);
+                }
             }
         }
+
+        const auto& query_code = _soundex_encoding_by_word.contains(query_word)
+                                     ? _soundex_encoding_by_word.at(query_word)
+                                     : akil::string::get_soundex_hash(query_word);
+        for(const auto& [dictionary_word, dictionary_code] : _soundex_encoding_by_word)
+        {
+            if(query_word == dictionary_word)
+            {
+                continue;
+            }
+
+            if(dictionary_code == query_code)
+            {
+                result.push_back(
+                    {dictionary_word,
+                     std::abs((short) (query_word.size() - dictionary_word.size())),
+                     "~"});
+            }
+        }
+
         return result;
     }
 #endif
 
-    Vocinity::Homophonic_Alternative_Composer::Word_Alternatives get_alternatives_by_phoneme(
-        const std::string& query_word,
-        const Instructions& instructions) const
+#ifdef LEVENSHTEIN_AVAILABLE
+    Vocinity::Homophonic_Alternative_Composer::Word_Alternatives
+    get_alternatives_by_phoneme_levenshtein(const std::string& query_word,
+                                            const Instructions& instructions) const
     {
         Vocinity::Homophonic_Alternative_Composer::Word_Alternatives result;
-
         const auto& [query_pronounciation, query_phonemes, query_phonemes_count] =
             _phonemes_by_word.at(query_word);
+
+        const ushort max_distance =
+            instructions.max_distance ? instructions.max_distance : query_phonemes_count;
         for(const auto& [dictionary_word, dictionary_pronounciation_info] : _phonemes_by_word)
         {
             const auto& [dictionary_word_pronounciation,
                          dictionary_word_phonemes,
                          dictionary_word_phonemes_count] = dictionary_pronounciation_info;
+            const bool has_parenthesis = akil::string::contains(dictionary_word, ')');
             if(dictionary_word_pronounciation == query_pronounciation
                and dictionary_word not_eq query_word)
             {
-                result.push_back({query_word, 0, "~"});
+                if(not has_parenthesis)
+                {
+                    result.push_back({dictionary_word, 0, "~"});
+                    continue;
+                }
+            }
+
+            if(dictionary_word == query_word)
+            {
                 continue;
+            }
+
+            const auto& levenshtein_difference = akil::string::levenshtein_difference(
+                query_pronounciation, dictionary_word_pronounciation);
+            if(levenshtein_difference.size() < max_distance)
+            {
+                ushort additions=0,removals=0,replacements=0;
+                for(const auto& ops : levenshtein_difference)
+                {
+                    if(ops.type==rapidfuzz::LevenshteinEditType::Insert)
+                    {
+                        ++additions;
+                    }
+                    else if(ops.type==rapidfuzz::LevenshteinEditType::Delete)
+                    {
+                        ++removals;
+                    }
+                    else if(ops.type==rapidfuzz::LevenshteinEditType::Replace)
+                    {
+                        ++replacements;
+                    }
+                }
+
+                const std::string& final_op= additions>removals ? (additions>replacements ? "+" : "~")
+                                                         : (removals>replacements ? "-" : "~");
+                result.push_back({dictionary_word, levenshtein_difference.size(), final_op});
+            }
+        }
+        return result;
+    }
+#endif
+    Vocinity::Homophonic_Alternative_Composer::Word_Alternatives
+    get_alternatives_by_phoneme_transcription(const std::string& query_word,
+                                              const Instructions& instructions) const
+    {
+        Vocinity::Homophonic_Alternative_Composer::Word_Alternatives result;
+        const auto& [query_pronounciation, query_phonemes, query_phonemes_count] =
+            _phonemes_by_word.at(query_word);
+
+        const ushort max_distance =
+            instructions.max_distance ? instructions.max_distance : query_phonemes_count;
+        for(const auto& [dictionary_word, dictionary_pronounciation_info] : _phonemes_by_word)
+        {
+            const auto& [dictionary_word_pronounciation,
+                         dictionary_word_phonemes,
+                         dictionary_word_phonemes_count] = dictionary_pronounciation_info;
+
+            const bool has_parenthesis = akil::string::contains(dictionary_word, ')');
+            if(dictionary_word_pronounciation == query_pronounciation
+               and dictionary_word not_eq query_word)
+            {
+                if(not has_parenthesis)
+                {
+                    result.push_back({dictionary_word, 0, "~"});
+                    continue;
+                }
             }
 
             const ushort num_of_common_phonemes =
                 get_num_of_common_phonemes(query_phonemes,
                                            query_phonemes_count,
                                            dictionary_word_phonemes,
-                                           dictionary_word_phonemes_count);
-            const bool has_parenthesis = akil::string::contains(dictionary_word, ')');
+                                           dictionary_word_phonemes_count,
+                                           false);
 
-            for(int distance = 1; distance < instructions.max_distance; ++distance)
+            for(short distance = 1; distance <= max_distance; ++distance)
             {
                 //if the amount of similar Phonemes in w and the dictionary word is
                 //equal to the the amount of phonemes in w, and the dictionary word has
@@ -263,7 +469,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                 {
                     if(!has_parenthesis)
                     { //ignores multiple pronunciations
-                        result.push_back({dictionary_word, -distance, "-"});
+                        result.push_back({dictionary_word, distance, "-"});
                     }
                 }
 
@@ -283,7 +489,9 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                     {
                         if(!has_parenthesis)
                         { //ignores multiple pronunciations
-                            result.push_back({dictionary_word, ordered_common_phonemes, "~"});
+                            result.push_back({dictionary_word,
+                                              query_phonemes_count - ordered_common_phonemes,
+                                              "~"});
                         }
                     }
                 }
@@ -316,26 +524,30 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
         const ushort& dictionary_phonemes_count,
         const bool order_matters = false)
     {
-        ushort common_phonemes = 0;
-        for(ushort query_phoneme_order = 0; query_phoneme_order < query_phonemes.size();
+        ushort common_phonemes                 = 0;
+        ushort last_matched_dict_phoneme_order = 0;
+        for(ushort query_phoneme_order = 0; query_phoneme_order < query_phonemes_count;
             ++query_phoneme_order)
         {
             const auto& query_phoneme = query_phonemes.at(query_phoneme_order);
-            for(size_t dictionary_phoneme_order = 0;
-                dictionary_phoneme_order < dictionary_phonemes.size();
+            bool found                = false;
+            for(size_t dictionary_phoneme_order = last_matched_dict_phoneme_order;
+                dictionary_phoneme_order < dictionary_phonemes_count;
                 ++dictionary_phoneme_order)
             {
                 if(order_matters)
                 {
                     if(dictionary_phonemes.at(dictionary_phoneme_order) == query_phoneme)
                     {
-                        if(dictionary_phonemes_count
+                        if(dictionary_phonemes_count - (dictionary_phoneme_order)
                            == query_phonemes_count - query_phoneme_order)
                         {
                             //if phoneme is in tempAfter AND the amount of phonemes
                             //remaining in tempafter is the same as the amount in wPronounce
                             //where order is preserved, then add one to counter.
                             ++common_phonemes;
+                            last_matched_dict_phoneme_order = dictionary_phoneme_order;
+                            found                           = true;
                         }
                     }
                 }
@@ -344,7 +556,13 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                     if(dictionary_phonemes.at(dictionary_phoneme_order) == query_phoneme)
                     {
                         ++common_phonemes;
+                        last_matched_dict_phoneme_order = dictionary_phoneme_order;
+                        found                           = true;
                     }
+                }
+                if(found)
+                {
+                    break;
                 }
             }
         }
