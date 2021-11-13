@@ -44,12 +44,12 @@ main(int argc, char* argv[])
                 continue;
             }
             const auto& utterance = utterances.at(utterance_order);
-            auto inference_chrone = std::chrono::high_resolution_clock::now();
+            auto inference_chrono = std::chrono::high_resolution_clock::now();
             const auto& score     = scorer.score(utterance, true);
             scores.push_back({utterance, score});
             const auto duration =
                 std::chrono::duration_cast<std::chrono::milliseconds>(
-                    std::chrono::high_resolution_clock::now() - inference_chrone)
+                    std::chrono::high_resolution_clock::now() - inference_chrono)
                     .count();
 
             if(verbose)
@@ -81,10 +81,10 @@ main(int argc, char* argv[])
         return scores;
     };
 
-    Vocinity::Homophonic_Alternative_Composer composer;
+    Vocinity::Homophonic_Alternative_Composer composer{Vocinity::Homophonic_Alternative_Composer::Use_More::And_More_Memory};
     Vocinity::Homophonic_Alternative_Composer::Instructions instructions;
-    instructions.max_distance              = 2;
-    instructions.max_best_num_alternatives = 10;
+    instructions.max_distance              = 1;
+    instructions.max_best_num_alternatives = 2;
     //instructions.dismissed_word_indices    = {0, 1, 2, 3};
     instructions.method =
         Vocinity::Homophonic_Alternative_Composer::Matching_Method::Phoneme_Transcription;
@@ -94,7 +94,7 @@ main(int argc, char* argv[])
     std::cout << "----------------------------------------------------------------------------"
                  "-------------------------"
               << std::endl;
-    std::cout <<"Input is: \""<< input <<"\""<< std::endl;
+    std::cout << "Input is: \"" << input << "\"" << std::endl;
     std::cout << "----------------------------------------------------------------------------"
                  "-------------------------"
               << std::endl;
@@ -139,21 +139,22 @@ main(int argc, char* argv[])
             raw_words = akil::string::split(sentence, ' ');
         }
 
-        auto word_combinations    = composer.get_alternatives(sentence, instructions);
-        const double warmup_count = 100;
-        auto inference_chrone     = std::chrono::high_resolution_clock::now();
-        for(int warmup = 0; warmup < warmup_count; ++warmup)
-        {
-            word_combinations = composer.get_alternatives(sentence, instructions, false);
-        }
+        auto chrono     = std::chrono::high_resolution_clock::now();
+    //    auto word_combinations    = composer.get_alternatives(sentence, instructions);
+        const double warmup_count =1;// 100;
+      //  for(int warmup = 0; warmup < warmup_count; ++warmup)
+     //   {
+            const auto word_combinations = composer.get_alternatives(sentence, instructions, false);
+      //  }
         const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                  std::chrono::high_resolution_clock::now() - inference_chrone)
+                                  std::chrono::high_resolution_clock::now() - chrono)
                                   .count();
         std::cout << "Homonym generation took " << duration / warmup_count << " msecs"
                   << std::endl;
         std::cout << "------------------------------------------------------------------------"
                      "-----------------------------"
                   << std::endl;
+
         combinations[sentence_order].push_back(akil::string::split(sentence, ' '));
         for(ushort block_order = 0; block_order < word_combinations.size(); ++block_order)
         {
@@ -184,14 +185,15 @@ main(int argc, char* argv[])
                 }
             }
 
-            const auto past = combinations.at(sentence_order);
-            for(auto past_sentence : past)
+            const size_t past_items_count = combinations.at(sentence_order).size();
+            for(uint64_t past_item_order = 0; past_item_order < past_items_count;
+                ++past_item_order)
             {
                 const auto& word_alternatives = word_combinations.at(block_order);
                 for(const auto& alternative : word_alternatives)
                 {
                     const auto& [similar_word, distance, op] = alternative;
-
+                    auto past_sentence           = combinations[sentence_order][past_item_order];
                     past_sentence[block_order] = similar_word;
                     combinations[sentence_order].push_back(past_sentence);
                 }
@@ -220,13 +222,26 @@ main(int argc, char* argv[])
 
             alternative.resize(alternative.size() - 1);
             alternative += ".";
-            auto full_statement=context_helper + " " + alternative;
+            auto full_statement = context_helper + " " + alternative;
+
+
+#ifdef CPP17_AVAILABLE
+            std::transform(
+                std::execution::unseq,
+                full_statement.cbegin(),
+                full_statement.cend(),
+                full_statement.begin(),
+                [](const auto& c)
+                { return static_cast<char>(std::tolower(static_cast<unsigned char>(c))); });
+#else
             std::transform(
                 full_statement.cbegin(),
                 full_statement.cend(),
                 full_statement.begin(),
                 [](const auto& c)
                 { return static_cast<char>(std::tolower(static_cast<unsigned char>(c))); });
+#endif
+
             utterances.push_back(full_statement);
 
             std::cout << alternative << std::endl;
@@ -275,29 +290,19 @@ main(int argc, char* argv[])
         }
     }
 
-    const bool parallel = true;
-    if(parallel)
-    {
+
 #ifdef CPP17_AVAILABLE
-        std::sort(std::execution::par_unseq,
-                  context_scores.begin(),
-                  context_scores.end(),
-                  [](const auto& one, const auto& another) -> bool
-                  { return one.second.mean > another.second.mean; });
+    std::sort(std::execution::unseq,
+              context_scores.begin(),
+              context_scores.end(),
+              [](const auto& one, const auto& another) -> bool
+              { return one.second.mean > another.second.mean; });
 #else
-        __gnu_parallel::sort(context_scores.begin(),
-                             context_scores.end(),
-                             [](const auto& one, const auto& another) -> bool
-                             { return one.second.mean > another.second.mean; });
+    std::sort(context_scores.begin(),
+              context_scores.end(),
+              [](const auto& one, const auto& another) -> bool
+              { return one.second.mean > another.second.mean; });
 #endif
-    }
-    else
-    {
-        std::sort(context_scores.begin(),
-                  context_scores.end(),
-                  [](const auto& one, const auto& another) -> bool
-                  { return one.second.mean > another.second.mean; });
-    }
 
     uint64_t entry_order = 0;
     for(const auto& entry : context_scores)
@@ -314,13 +319,16 @@ main(int argc, char* argv[])
             std::cout << "h_mean: " << score.h_mean << std::endl;
             std::cout << "loss: " << score.loss << std::endl;
             std::cout << "sentence_probability: " << score.sentence_probability << std::endl;
-            std::cout << "----------------------------------------------------------------------------"
+            std::cout << "--------------------------------------------------------------------"
+                         "--------"
                          "-------------------------"
                       << std::endl;
         }
         else
         {
-            std::cout <<"mean perplexity: " <<entry.second.mean << " | " << entry.first << std::endl<< std::endl;
+            std::cout << "mean perplexity: " << entry.second.mean << " | " << entry.first
+                      << std::endl
+                      << std::endl;
         }
     }
 

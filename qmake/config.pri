@@ -173,6 +173,7 @@ unix{
     extensionProcessor(LEVENSHTEIN_SSE)
     extensionProcessor(RAPIDFUZZ_CPP)
     enableExtension(ROBIN_HOOD_HASHING)
+    enableExtension(PARALLEL_HASHMAP)
     enableExtension(MAGIC_ENUM)
     extensionProcessor(RANGE_V3)
     enableExtension(TORCH)

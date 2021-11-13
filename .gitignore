@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+example/qmake/cudaArchTool
+
+qmake/cudaArchTool
+
+context-scorer.pro.user
