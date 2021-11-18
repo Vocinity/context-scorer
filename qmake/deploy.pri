@@ -72,7 +72,7 @@ unix {
     INSTALLS +=  target
 
     header.path=$${INCLUDE_DIR}/
-    header.files=$${SRC_DIR}/Context_Scorer.hpp
+    header.files=$${SRC_DIR}/Context_Scorer.hpp $${SRC_DIR}/Homophonic_Alternatives.hpp
     INSTALLS +=  header
 
 
