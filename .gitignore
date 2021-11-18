@@ -36,3 +36,7 @@ example/qmake/cudaArchTool
 qmake/cudaArchTool
 
 context-scorer.pro.user
+
+qmake/depend_context_scorer.pri
+
+src/Homophonic_Alternatives_orj.cpp
