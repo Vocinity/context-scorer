@@ -464,7 +464,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
             const auto query_word_indice = _phonemes_by_word.at(query_word);
             const auto& distanced_items  = _phoneme_index.at(query_word_indice);
             const ushort max_distance    = instructions.max_distance > -1
-                                               ? instructions.max_distance
+                                               ? std::min((size_t)instructions.max_distance,distanced_items.size())
                                                : distanced_items.size();
             for(ushort distance = 0; distance <= max_distance; ++distance)
             {
@@ -605,7 +605,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
             const auto query_word_indice = _phonemes_by_word.at(query_word);
             const auto& distanced_items  = _phoneme_index.at(query_word_indice);
             const ushort max_distance    = instructions.max_distance > -1
-                                               ? instructions.max_distance
+                                               ? std::min((size_t)instructions.max_distance,distanced_items.size())
                                                : distanced_items.size();
             for(ushort distance = 0; distance <= max_distance; ++distance)
             {
@@ -639,7 +639,6 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
             }
             return result;
         }
-
 
         const ushort max_distance =
             instructions.max_distance > -1 ? instructions.max_distance : query_phonemes_count;
@@ -937,14 +936,7 @@ Vocinity::Homophonic_Alternative_Composer::
         const auto word_order    = phonemes_vector.size();
         const ushort max_distance_to_be_used =
             max_distance > -1 ? max_distance : phonemes_size;
-        if(not levenshtein)
-        {
-            similarity_index[word_order].resize(max_distance_to_be_used + 1);
-        }
-        else
-        {
-            similarity_index[word_order].resize(1);
-        }
+        similarity_index[word_order].resize(max_distance_to_be_used + 1);
         phonemes_vector.push_back({word, {pronounciation, phonemes, phonemes_size}});
     }
 #ifdef PROFILE_TIMING
@@ -992,7 +984,7 @@ Vocinity::Homophonic_Alternative_Composer::
                     dictionary_word_phonemes_count,
                     false);
 
-            for(ushort distance = 1; distance <= max_distance; ++distance)
+            for(ushort distance = 1; distance <= max_distance_to_be_used; ++distance)
             {
                 if(num_of_common_phonemes == (query_phonemes_count - distance))
                 {
@@ -1083,8 +1075,8 @@ Vocinity::Homophonic_Alternative_Composer::
                 const char& final_op = additions > removals
                                            ? (additions > replacements ? 1 : 0)
                                            : (removals > replacements ? -1 : 0);
-                similarity_index[query_word_order][0].push_back(
-                    {dictionary_order, /*levenshtein_difference.size(), */ final_op});
+                similarity_index[query_word_order][levenshtein_difference.size()].push_back(
+                    {dictionary_order, final_op});
             }
         }
     };
