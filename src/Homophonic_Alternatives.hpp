@@ -79,7 +79,8 @@ namespace Vocinity
 
         static std::vector<std::vector<std::vector<std::pair<size_t, char>>>>
         load_precomputed_phoneme_similarity_map(
-            const std::filesystem::path& map_path_to_be_imported);
+            const std::filesystem::path& map_path_to_be_imported,
+                const bool binary = true);
 
         /** @brief Pre-index and just lookup whole cartesian relations which would be computed again and again otherwise. */
         void set_precomputed_phoneme_similarity_map(
@@ -104,7 +105,7 @@ namespace Vocinity
         static void save_precomputed_phoneme_similarity_map(
             const std::vector<std::vector<std::vector<std::pair<size_t, char>>>>& map,
             const std::filesystem::path& map_path_to_be_exported,
-            const bool binary = false);
+            const bool binary = true);
 
       public:
 #ifdef SOUNDEX_AVAILABLE

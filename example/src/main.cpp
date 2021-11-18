@@ -83,18 +83,19 @@ main(int argc, char* argv[])
     };
 
     const auto& phonetics_dictionary =
-        Vocinity::Homophonic_Alternative_Composer::load_phonetics_dictionary();
-    auto similarity_map = Vocinity::Homophonic_Alternative_Composer::
+        Vocinity::Homophonic_Alternative_Composer::load_phonetics_dictionary("cmudict.0.7a.txt");
+    const auto similarity_map_composed = Vocinity::Homophonic_Alternative_Composer::
         precompute_phoneme_similarity_map_from_phonetics_dictionary(phonetics_dictionary,2,0,false);
     Vocinity::Homophonic_Alternative_Composer::save_precomputed_phoneme_similarity_map(
-        similarity_map, "./similarity_map.txt", false);
-
+        similarity_map_composed, "./similarity_map.bin", false);
+    auto similarity_map_loaded=Vocinity::Homophonic_Alternative_Composer::load_precomputed_phoneme_similarity_map(
+                       "./similarity_map.bin");
     Vocinity::Homophonic_Alternative_Composer composer{phonetics_dictionary};
-    composer.set_precomputed_phoneme_similarity_map(std::move(similarity_map));
+    composer.set_precomputed_phoneme_similarity_map(std::move(similarity_map_loaded));
 
     Vocinity::Homophonic_Alternative_Composer::Instructions instructions;
     instructions.max_distance              = 1;
-    instructions.max_best_num_alternatives = 2;
+    instructions.max_best_num_alternatives = 0;
     //instructions.dismissed_word_indices    = {0, 1, 2, 3};
     instructions.method =
         Vocinity::Homophonic_Alternative_Composer::Matching_Method::Phoneme_Transcription;

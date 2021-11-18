@@ -466,14 +466,16 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
             const ushort max_distance    = instructions.max_distance > -1
                                                ? instructions.max_distance
                                                : distanced_items.size();
-            for(ushort distance = 0; distance < max_distance; ++distance)
+            for(ushort distance = 0; distance <= max_distance; ++distance)
             {
                 const auto& items_of_distance = distanced_items.at(distance);
-#	ifdef CPP17_AVAILABLE
+                const auto result_range_begin = result.size();
+                result.resize(result_range_begin + items_of_distance.size());
+#ifdef CPP17_AVAILABLE
                 std::transform(std::execution::unseq,
                                items_of_distance.cbegin(),
                                items_of_distance.cend(),
-                               result.end(),
+                               result.begin() + result_range_begin,
                                [&](const std::pair<size_t, char>& item) -> Alternative_Word
                                {
                                    return {
@@ -481,7 +483,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                                        distance,
                                        (item.second ? (item.second > 0 ? "+" : "-") : "~")};
                                });
-#	else
+#else
                 std::transform(items_of_distance.cbegin(),
                                items_of_distance.cend(),
                                result.end(),
@@ -605,14 +607,16 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
             const ushort max_distance    = instructions.max_distance > -1
                                                ? instructions.max_distance
                                                : distanced_items.size();
-            for(ushort distance = 0; distance < max_distance; ++distance)
+            for(ushort distance = 0; distance <= max_distance; ++distance)
             {
                 const auto& items_of_distance = distanced_items.at(distance);
-#	ifdef CPP17_AVAILABLE
+                const auto result_range_begin = result.size();
+                result.resize(result_range_begin + items_of_distance.size());
+#ifdef CPP17_AVAILABLE
                 std::transform(std::execution::unseq,
                                items_of_distance.cbegin(),
                                items_of_distance.cend(),
-                               result.end(),
+                               result.begin() + result_range_begin,
                                [&](const std::pair<size_t, char>& item) -> Alternative_Word
                                {
                                    return {
@@ -620,10 +624,10 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                                        distance,
                                        (item.second ? (item.second > 0 ? "+" : "-") : "~")};
                                });
-#	else
+#else
                 std::transform(items_of_distance.cbegin(),
                                items_of_distance.cend(),
-                               result.end(),
+                               std::back_inserter(result),
                                [&](const std::pair<size_t, char>& item) -> Alternative_Word
                                {
                                    return {
@@ -631,7 +635,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                                        distance,
                                        (item.second ? (item.second > 0 ? "+" : "-") : "~")};
                                });
-#	endif
+#endif
             }
             return result;
         }
@@ -887,7 +891,7 @@ Vocinity::Homophonic_Alternative_Composer::load_phonetics_dictionary(
             {
                 word = akil::string::split(word, '(').at(0);
             }
-            pronounciation_by_word.push_back({word,pronounciation});
+            pronounciation_by_word.push_back({word, pronounciation});
         }
     }
     return pronounciation_by_word;
@@ -1221,7 +1225,7 @@ Vocinity::Homophonic_Alternative_Composer::
     std::cout << "pre-computation took: " << total_duration << std::endl;
 #endif
 
-    return {};
+    return similarity_index;
 }
 
 void
@@ -1230,12 +1234,11 @@ Vocinity::Homophonic_Alternative_Composer::save_precomputed_phoneme_similarity_m
     const std::filesystem::path& map_path_to_be_exported,
     const bool binary)
 {
-    nlohmann::json j_map(map);
-    std::cout << j_map << std::endl;
+    const nlohmann::json j_map(map);
     if(binary)
     {
-        auto cbor = nlohmann::json::to_msgpack(j_map);
-        std::cout << cbor << std::endl;
+        const auto& cbor = nlohmann::json::to_cbor(j_map);
+        //  std::cout << cbor << std::endl;
         std::ofstream file_handle(map_path_to_be_exported);
         file_handle << cbor;
     }
@@ -1248,13 +1251,16 @@ Vocinity::Homophonic_Alternative_Composer::save_precomputed_phoneme_similarity_m
 
 std::vector<std::vector<std::vector<std::pair<size_t, char>>>>
 Vocinity::Homophonic_Alternative_Composer::load_precomputed_phoneme_similarity_map(
-    const std::filesystem::path& map_path_to_be_imported)
+    const std::filesystem::path& map_path_to_be_imported,
+    const bool binary)
 {
     std::ifstream file_handle(map_path_to_be_imported);
     assert(file_handle.good() && "file not exists");
     nlohmann::json similarity_map_json;
     file_handle >> similarity_map_json;
-    auto similarity_map = similarity_map_json.get<std::vector<std::vector<std::vector<std::pair<size_t, char>>>>>();
+    auto similarity_map =
+        similarity_map_json
+            .get<std::vector<std::vector<std::vector<std::pair<size_t, char>>>>>();
     return similarity_map;
 }
 
