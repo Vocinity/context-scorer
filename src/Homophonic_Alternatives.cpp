@@ -11,14 +11,14 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
 
   public:
     explicit Homophonic_Alternative_Composer_Impl(
-        const Unordered_Map<std::string, std::string>& phonetics_dictionary)
+        const std::vector<std::pair<std::string, std::string>>& phonetics_dictionary)
         : _mode(Use_More::CPU)
     {
         for(const auto& [word, pronounciation] : phonetics_dictionary)
         {
             const auto& phonemes     = get_phonemes(pronounciation);
             const auto phonemes_size = phonemes.size();
-            _phonemes_by_word[word]  = {pronounciation, phonemes, phonemes_size};
+            _phonemes_by_word[word]  = _phonemes_vector.size();
             _phonemes_vector.push_back({word, {pronounciation, phonemes, phonemes_size}});
         }
     }
@@ -34,7 +34,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
         return;
 #	endif
 #endif
-        for(const auto& [query_word, outer_pron] : _phonemes_by_word)
+        for(const auto& [query_word, outer_pron] : _phonemes_vector)
         {
             const auto& [query_pronounciation, query_phonemes, query_phonemes_count] =
                 outer_pron;
@@ -61,12 +61,13 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
 
   public:
     void set_precomputed_phoneme_similarity_map(
-        Unordered_Map<std::string,
-                      Unordered_Map<Matching_Method, std::vector<Word_Alternatives>>> map)
+        std::vector<std::vector<std::vector<std::pair<size_t, char>>>> map,
+        const bool levenshtein)
     {
-        _phoneme_index = std::move(map);
-        _mode          = Use_More::And_More_Memory;
-        precompute_phoneme_similarity_map_from_phonetics_dictionary();
+        _phoneme_index        = std::move(map);
+        _mode                 = Use_More::And_More_Memory;
+        _is_levensthein_index = levenshtein;
+        precompute_soundex_and_metaphone_similarity();
     }
 #ifdef SOUNDEX_AVAILABLE
     void set_in_memory_soundex_dictionary(
@@ -107,7 +108,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
         const bool parallel)
     {
         Vocinity::Homophonic_Alternative_Composer::Word_Alternatives result;
-        if(_phonemes_by_word.empty() and _double_metaphone_encoding_by_word.empty()
+        if(_phonemes_vector.empty() and _double_metaphone_encoding_by_word.empty()
            and _soundex_encoding_by_word.empty())
         {
             std::cout << "Dictionary is empty. Either you had to pass dict path to ctor or "
@@ -123,7 +124,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
         )
         {
             bool exists = false;
-            if(not _phonemes_by_word.empty())
+            if(not _phonemes_vector.empty())
             {
                 exists = _phonemes_by_word.contains(query_word);
             }
@@ -251,7 +252,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                 }
                 else
                 {
-                    for(const auto& [word, _] : _phonemes_by_word)
+                    for(const auto& [word, _] : _phonemes_vector)
                     {
                         const auto& metaphone_code =
                             akil::string::get_double_metaphone_hash(word);
@@ -368,13 +369,13 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
         {
             if(_double_metaphone_encoding_by_word.empty())
             {
-                if(_phonemes_by_word.empty())
+                if(_phonemes_vector.empty())
                 {
                     return {};
                 }
                 else
                 {
-                    for(const auto& [word, _] : _phonemes_by_word)
+                    for(const auto& [word, _] : _phonemes_vector)
                     {
                         const auto& soundex_code        = akil::string::get_soundex_hash(word);
                         _soundex_encoding_by_word[word] = soundex_code;
@@ -456,30 +457,48 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
     {
         Vocinity::Homophonic_Alternative_Composer::Word_Alternatives result;
         const auto& [query_pronounciation, query_phonemes, query_phonemes_count] =
-            _phonemes_by_word.at(query_word);
+            _phonemes_vector.at(_phonemes_by_word.at(query_word)).second;
 
-        const ushort max_distance =
-            instructions.max_distance > -1 ? instructions.max_distance : query_phonemes_count;
-
-        if(_mode == Use_More::And_More_Memory)
+        if(_mode == Use_More::And_More_Memory and _is_levensthein_index)
         {
+            const auto query_word_indice = _phonemes_by_word.at(query_word);
+            const auto& distanced_items  = _phoneme_index.at(query_word_indice);
+            const ushort max_distance    = instructions.max_distance > -1
+                                               ? instructions.max_distance
+                                               : distanced_items.size();
             for(ushort distance = 0; distance < max_distance; ++distance)
             {
-                if(_phoneme_index.at(query_word)
-                       .at(Matching_Method::Phoneme_Levenshtein)
-                       .size()
-                   > distance)
-                {
-                    const auto& distanced_items = _phoneme_index.at(query_word)
-                                                      .at(Matching_Method::Phoneme_Levenshtein)
-                                                      .at(distance);
-                    result.insert(std::end(result),
-                                  std::begin(distanced_items),
-                                  std::end(distanced_items));
-                }
+                const auto& items_of_distance = distanced_items.at(distance);
+#	ifdef CPP17_AVAILABLE
+                std::transform(std::execution::unseq,
+                               items_of_distance.cbegin(),
+                               items_of_distance.cend(),
+                               result.end(),
+                               [&](const std::pair<size_t, char>& item) -> Alternative_Word
+                               {
+                                   return {
+                                       _phonemes_vector.at(item.first).first,
+                                       distance,
+                                       (item.second ? (item.second > 0 ? "+" : "-") : "~")};
+                               });
+#	else
+                std::transform(items_of_distance.cbegin(),
+                               items_of_distance.cend(),
+                               result.end(),
+                               [&](const std::pair<size_t, char>& item) -> Alternative_Word
+                               {
+                                   return {
+                                       _phonemes_vector.at(item.first).first,
+                                       distance,
+                                       (item.second ? (item.second > 0 ? "+" : "-") : "~")};
+                               });
+#	endif
             }
             return result;
         }
+
+        const ushort max_distance =
+            instructions.max_distance > -1 ? instructions.max_distance : query_phonemes_count;
 
         std::mutex mutex;
         auto processor = [&](const std::string& dictionary_word,
@@ -577,32 +596,49 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
 #endif
         Vocinity::Homophonic_Alternative_Composer::Word_Alternatives result;
         const auto& [query_pronounciation, query_phonemes, query_phonemes_count] =
-            _phonemes_by_word.at(query_word);
+            _phonemes_vector.at(_phonemes_by_word.at(query_word)).second;
 
-        const ushort max_distance =
-            instructions.max_distance > -1 ? instructions.max_distance : query_phonemes_count;
-
-        if(_mode == Use_More::And_More_Memory)
+        if(_mode == Use_More::And_More_Memory and not _is_levensthein_index)
         {
+            const auto query_word_indice = _phonemes_by_word.at(query_word);
+            const auto& distanced_items  = _phoneme_index.at(query_word_indice);
+            const ushort max_distance    = instructions.max_distance > -1
+                                               ? instructions.max_distance
+                                               : distanced_items.size();
             for(ushort distance = 0; distance < max_distance; ++distance)
             {
-                if(_phoneme_index.at(query_word)
-                       .at(Matching_Method::Phoneme_Transcription)
-                       .size()
-                   > distance)
-                {
-                    const auto& distanced_items =
-                        _phoneme_index.at(query_word)
-                            .at(Matching_Method::Phoneme_Transcription)
-                            .at(distance);
-                    result.insert(std::end(result),
-                                  std::begin(distanced_items),
-                                  std::end(distanced_items));
-                }
+                const auto& items_of_distance = distanced_items.at(distance);
+#	ifdef CPP17_AVAILABLE
+                std::transform(std::execution::unseq,
+                               items_of_distance.cbegin(),
+                               items_of_distance.cend(),
+                               result.end(),
+                               [&](const std::pair<size_t, char>& item) -> Alternative_Word
+                               {
+                                   return {
+                                       _phonemes_vector.at(item.first).first,
+                                       distance,
+                                       (item.second ? (item.second > 0 ? "+" : "-") : "~")};
+                               });
+#	else
+                std::transform(items_of_distance.cbegin(),
+                               items_of_distance.cend(),
+                               result.end(),
+                               [&](const std::pair<size_t, char>& item) -> Alternative_Word
+                               {
+                                   return {
+                                       _phonemes_vector.at(item.first).first,
+                                       distance,
+                                       (item.second ? (item.second > 0 ? "+" : "-") : "~")};
+                               });
+#	endif
             }
             return result;
         }
 
+
+        const ushort max_distance =
+            instructions.max_distance > -1 ? instructions.max_distance : query_phonemes_count;
         std::mutex mutex;
         auto processor = [&](const std::string& dictionary_word,
                              const std::tuple<std::string, std::vector<std::string>, ushort>&
@@ -799,13 +835,12 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
 
   private:
     Use_More _mode = Use_More::CPU;
-    Unordered_Map<std::string, std::tuple<std::string, std::vector<std::string>, ushort>>
-        _phonemes_by_word;
+    Unordered_Map<std::string, size_t> _phonemes_by_word;
     std::vector<
         std::pair<std::string, std::tuple<std::string, std::vector<std::string>, ushort>>>
         _phonemes_vector;
-    Unordered_Map<std::string, Unordered_Map<Matching_Method, std::vector<Word_Alternatives>>>
-        _phoneme_index;
+    std::vector<std::vector<std::vector<std::pair<size_t, char>>>> _phoneme_index;
+    bool _is_levensthein_index = false;
 #ifdef SOUNDEX_AVAILABLE
     Unordered_Map<std::string, std::vector<std::string>> _word_by_soundex_encoding;
     Unordered_Map<std::string, std::string> _soundex_encoding_by_word;
@@ -819,11 +854,11 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
 
 // --------------------------------------------------------------------------------------------------
 
-Unordered_Map<std::string, std::string>
+std::vector<std::pair<std::string, std::string>>
 Vocinity::Homophonic_Alternative_Composer::load_phonetics_dictionary(
     const std::filesystem::path& dictionary)
 {
-    Unordered_Map<std::string, std::string> pronounciation_by_word;
+    std::vector<std::pair<std::string, std::string>> pronounciation_by_word;
     if(not dictionary.empty())
     {
         std::ifstream dictionary_file(dictionary);
@@ -852,41 +887,42 @@ Vocinity::Homophonic_Alternative_Composer::load_phonetics_dictionary(
             {
                 word = akil::string::split(word, '(').at(0);
             }
-            pronounciation_by_word[word] = pronounciation;
+            pronounciation_by_word.push_back({word,pronounciation});
         }
     }
     return pronounciation_by_word;
 }
 
-Unordered_Map<
-    std::string,
-    Unordered_Map<Vocinity::Homophonic_Alternative_Composer::Matching_Method,
-                  std::vector<Vocinity::Homophonic_Alternative_Composer::Word_Alternatives>>>
+std::vector<std::vector<std::vector<std::pair<size_t, char>>>>
 Vocinity::Homophonic_Alternative_Composer::
     precompute_phoneme_similarity_map_from_phonetics_dictionary(
-        const std::filesystem::path& dictionary)
+        const std::filesystem::path& dictionary,
+        const short max_distance,
+        const ushort max_best_num_alternatives,
+        const bool levenshtein)
 {
     return precompute_phoneme_similarity_map_from_phonetics_dictionary(
-        load_phonetics_dictionary(dictionary));
+        load_phonetics_dictionary(dictionary),
+        max_distance,
+        max_best_num_alternatives,
+        levenshtein);
 }
 
-Unordered_Map<
-    std::string,
-    Unordered_Map<Vocinity::Homophonic_Alternative_Composer::Matching_Method,
-                  std::vector<Vocinity::Homophonic_Alternative_Composer::Word_Alternatives>>>
+std::vector<std::vector<std::vector<std::pair<size_t, char>>>>
 Vocinity::Homophonic_Alternative_Composer::
     precompute_phoneme_similarity_map_from_phonetics_dictionary(
-        const Unordered_Map<std::string, std::string>& dictionary)
+        const std::vector<std::pair<std::string, std::string>>& dictionary,
+        const short max_distance,
+        const ushort max_best_num_alternatives,
+        const bool levenshtein)
 {
-    Unordered_Map<std::string, std::tuple<std::string, std::vector<std::string>, ushort>>
-        phonemes_by_word;
-
     std::vector<
         std::pair<std::string, std::tuple<std::string, std::vector<std::string>, ushort>>>
         phonemes_vector;
 
-    Unordered_Map<std::string, Unordered_Map<Matching_Method, std::vector<Word_Alternatives>>>
-        similarity_index;
+    std::vector<std::vector<std::vector<std::pair<size_t, char>>>> similarity_index;
+    similarity_index.resize(dictionary.size());
+
 #ifdef PROFILE_TIMING
     auto chrono = std::chrono::high_resolution_clock::now();
 #endif
@@ -894,28 +930,39 @@ Vocinity::Homophonic_Alternative_Composer::
     {
         const auto& phonemes     = akil::string::split(pronounciation, ' ');
         const auto phonemes_size = phonemes.size();
-        phonemes_by_word[word]   = {pronounciation, phonemes, phonemes_size};
-        similarity_index[word][Matching_Method::Phoneme_Transcription].resize(phonemes_size
-                                                                              + 1);
-        similarity_index[word][Matching_Method::Phoneme_Levenshtein].resize(phonemes_size + 1);
+        const auto word_order    = phonemes_vector.size();
+        const ushort max_distance_to_be_used =
+            max_distance > -1 ? max_distance : phonemes_size;
+        if(not levenshtein)
+        {
+            similarity_index[word_order].resize(max_distance_to_be_used + 1);
+        }
+        else
+        {
+            similarity_index[word_order].resize(1);
+        }
         phonemes_vector.push_back({word, {pronounciation, phonemes, phonemes_size}});
     }
 #ifdef PROFILE_TIMING
     auto total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
                               std::chrono::high_resolution_clock::now() - chrono)
                               .count();
-    std::cout << "dictionary parsing took: " << total_duration << std::endl;
+    std::cout << "parsing dictionary took: " << total_duration << std::endl;
 #endif
 
-    auto processor =
-        [&](const std::string& query_word,
+    auto transcription_processor =
+        [&](const size_t query_word_order,
+            const std::string& query_word,
             const std::tuple<std::string, std::vector<std::string>, ushort>& outer_pron)
     {
         const auto& [query_pronounciation, query_phonemes, query_phonemes_count] = outer_pron;
-        const ushort max_distance = query_phonemes_count;
+        const ushort max_distance_to_be_used =
+            max_distance > -1 ? max_distance : query_phonemes_count;
 
-        for(const auto& [dictionary_word, inner_pron] : phonemes_by_word)
+        for(size_t dictionary_order = 0; dictionary_order < phonemes_vector.size();
+            ++dictionary_order)
         {
+            const auto& [dictionary_word, inner_pron]    = phonemes_vector[dictionary_order];
             const auto& [dictionary_word_pronounciation,
                          dictionary_word_phonemes,
                          dictionary_word_phonemes_count] = inner_pron;
@@ -927,41 +974,9 @@ Vocinity::Homophonic_Alternative_Composer::
                 {
                     if(strcmp(dictionary_word.c_str(), query_word.c_str()))
                     {
-                        similarity_index[query_word][Matching_Method::Phoneme_Transcription][0]
-                            .push_back({dictionary_word, 0, "~"});
-                        similarity_index[query_word][Matching_Method::Phoneme_Levenshtein][0]
-                            .push_back({dictionary_word, 0, "~"});
+                        similarity_index[query_word_order][0].push_back({dictionary_order, 0});
                         continue;
                     }
-                }
-            }
-            {
-                const auto& levenshtein_difference = akil::string::levenshtein_difference(
-                    query_pronounciation, dictionary_word_pronounciation);
-                if(levenshtein_difference.size() <= max_distance)
-                {
-                    ushort additions = 0, removals = 0, replacements = 0;
-                    for(const auto& ops : levenshtein_difference)
-                    {
-                        if(ops.type == rapidfuzz::LevenshteinEditType::Insert)
-                        {
-                            ++additions;
-                        }
-                        else if(ops.type == rapidfuzz::LevenshteinEditType::Delete)
-                        {
-                            ++removals;
-                        }
-                        else if(ops.type == rapidfuzz::LevenshteinEditType::Replace)
-                        {
-                            ++replacements;
-                        }
-                    }
-
-                    const std::string& final_op = additions > removals
-                                                      ? (additions > replacements ? "+" : "~")
-                                                      : (removals > replacements ? "-" : "~");
-                    similarity_index[query_word][Matching_Method::Phoneme_Levenshtein][0]
-                        .push_back({dictionary_word, levenshtein_difference.size(), final_op});
                 }
             }
 
@@ -979,9 +994,8 @@ Vocinity::Homophonic_Alternative_Composer::
                 {
                     if(dictionary_word_phonemes_count == query_phonemes_count - distance)
                     {
-                        similarity_index[query_word][Matching_Method::Phoneme_Transcription]
-                                        [distance]
-                                            .push_back({dictionary_word, distance, "-"});
+                        similarity_index[query_word_order][distance].push_back(
+                            {dictionary_order, -1});
                     }
                     else if(dictionary_word_phonemes_count == query_phonemes_count)
                     {
@@ -995,14 +1009,9 @@ Vocinity::Homophonic_Alternative_Composer::
                                                                true);
                         if(ordered_common_phonemes == (query_phonemes_count - distance))
                         {
-                            similarity_index[query_word]
-                                            [Matching_Method::Phoneme_Transcription]
-                                                .at(query_phonemes_count
-                                                    - ordered_common_phonemes)
-                                                .push_back({dictionary_word,
-                                                            query_phonemes_count
-                                                                - ordered_common_phonemes,
-                                                            "~"});
+                            similarity_index[query_word_order]
+                                .at(query_phonemes_count - ordered_common_phonemes)
+                                .push_back({dictionary_order, 0});
                         }
                     }
                 }
@@ -1010,56 +1019,214 @@ Vocinity::Homophonic_Alternative_Composer::
                 {
                     if(dictionary_word_phonemes_count == (query_phonemes_count + distance))
                     {
-                        similarity_index[query_word][Matching_Method::Phoneme_Transcription]
-                                        [distance]
-                                            .push_back({dictionary_word, distance, "+"});
+                        similarity_index[query_word_order][distance].push_back(
+                            {dictionary_order, 1});
                     }
                 }
             }
         }
     };
 
+    auto levenshtein_processor =
+        [&](const size_t query_word_order,
+            const std::string& query_word,
+            const std::tuple<std::string, std::vector<std::string>, ushort>& outer_pron)
+    {
+        const auto& [query_pronounciation, query_phonemes, query_phonemes_count] = outer_pron;
+
+        for(size_t dictionary_order = 0; dictionary_order < phonemes_vector.size();
+            ++dictionary_order)
+        {
+            const auto& [dictionary_word, inner_pron]    = phonemes_vector[dictionary_order];
+            const auto& [dictionary_word_pronounciation,
+                         dictionary_word_phonemes,
+                         dictionary_word_phonemes_count] = inner_pron;
+
+            if(dictionary_word_phonemes_count == query_phonemes_count)
+            {
+                if(not strcmp(dictionary_word_pronounciation.c_str(),
+                              query_pronounciation.c_str()))
+                {
+                    if(strcmp(dictionary_word.c_str(), query_word.c_str()))
+                    {
+                        similarity_index[query_word_order][0].push_back({dictionary_order, 0});
+                        continue;
+                    }
+                }
+            }
+
+            const auto& levenshtein_difference = akil::string::levenshtein_difference(
+                query_pronounciation, dictionary_word_pronounciation);
+            if(levenshtein_difference.size() <= max_distance)
+            {
+                ushort additions = 0, removals = 0, replacements = 0;
+                for(const auto& ops : levenshtein_difference)
+                {
+                    if(ops.type == rapidfuzz::LevenshteinEditType::Insert)
+                    {
+                        ++additions;
+                    }
+                    else if(ops.type == rapidfuzz::LevenshteinEditType::Delete)
+                    {
+                        ++removals;
+                    }
+                    else if(ops.type == rapidfuzz::LevenshteinEditType::Replace)
+                    {
+                        ++replacements;
+                    }
+                }
+
+                const char& final_op = additions > removals
+                                           ? (additions > replacements ? 1 : 0)
+                                           : (removals > replacements ? -1 : 0);
+                similarity_index[query_word_order][0].push_back(
+                    {dictionary_order, /*levenshtein_difference.size(), */ final_op});
+            }
+        }
+    };
+
+
 #ifdef PROFILE_TIMING
     chrono                  = std::chrono::high_resolution_clock::now();
     uint64_t progress_order = 0;
 #endif
-#ifdef CPP17_AVAILABLE
-    std::for_each(std::execution::par_unseq,
-                  phonemes_vector.cbegin(),
-                  phonemes_vector.cend(),
-                  [&](const auto& item)
-                  {
-                      const auto& [query_word, outer_pron] = item;
-                      processor(query_word, outer_pron);
-                      std::cout << ++progress_order << "/" << phonemes_by_word.size()
-                                << " indexed." << std::endl;
-                  });
+#ifdef __TBB_parallel_for_H
+    tbb::parallel_for(
+        tbb::blocked_range<size_t>(0, phonemes_vector.size()),
+        [&](tbb::blocked_range<size_t> r)
+        {
+            for(size_t order = r.begin(); order < r.end(); ++order)
+            {
+                const auto& [query_word, outer_pron] = phonemes_vector.at(order);
+                if(levenshtein)
+                {
+                    levenshtein_processor(order, query_word, outer_pron);
+                    std::cout << ++progress_order << "/" << phonemes_vector.size()
+                              << " indexed." << std::endl;
+                }
+                else
+                {
+                    transcription_processor(order, query_word, outer_pron);
+                    std::cout << ++progress_order << "/" << phonemes_vector.size()
+                              << " indexed." << std::endl;
+                }
+
+                if(max_best_num_alternatives)
+                {
+                    uint64_t num_items_we_have = 0;
+                    for(ushort distance_order = 0; similarity_index[order].size();
+                        ++distance_order)
+                    {
+                        auto& distanced_items = similarity_index[order][distance_order];
+                        if(num_items_we_have > max_best_num_alternatives)
+                        {
+                            similarity_index[order].resize(distance_order);
+                            break;
+                        }
+                        num_items_we_have += distanced_items.size();
+                        if(num_items_we_have > max_best_num_alternatives)
+                        {
+                            std::sort(std::execution::unseq,
+                                      distanced_items.begin(),
+                                      distanced_items.end(),
+                                      [](const std::pair<size_t, char>& one,
+                                         const std::pair<size_t, char>& another) -> bool
+                                      {
+                                          const auto& [_, first_op]   = one;
+                                          const auto& [__, second_op] = another;
+
+                                          if(first_op == 0 and (second_op not_eq 0))
+                                          {
+                                              return true;
+                                          }
+                                          else if((first_op not_eq 0) and (second_op not_eq 0))
+                                          {
+                                              if(first_op == -1 and second_op == 1)
+                                              {
+                                                  return true;
+                                              }
+                                          }
+                                          return false;
+                                      });
+                            distanced_items.resize(max_best_num_alternatives
+                                                   - num_items_we_have);
+                        }
+                    }
+                }
+            }
+        });
 #else
-    __gnu_parallel::for_each(phonemes_vector.cbegin(),
-                             phonemes_vector.cend(),
-                             [&](const auto& item)
-                             {
-                                 const auto& [query_word, outer_pron] = item;
-                                 processor(query_word, outer_pron);
-                                 std::cout << ++progress_order << "/"
-                                           << phonemes_by_word.size() << " indexed."
-                                           << std::endl;
-                             });
+    for(size_t order = 0; order < phonemes_vector.size(); ++order)
+    {
+        const auto& [query_word, outer_pron] = phonemes_vector.at(order);
+        if(levenshtein)
+        {
+            levenshtein_processor(order, query_word, outer_pron);
+            std::cout << ++progress_order << "/" << phonemes_vector.size() << " indexed."
+                      << std::endl;
+        }
+        else
+        {
+            transcription_processor(order, query_word, outer_pron);
+            std::cout << ++progress_order << "/" << phonemes_vector.size() << " indexed."
+                      << std::endl;
+        }
+
+        if(max_best_num_alternatives)
+        {
+            uint64_t num_items_we_have = 0;
+            for(ushort distance_order = 0; similarity_index[order].size(); ++distance_order)
+            {
+                auto& distanced_items = similarity_index[order][distance_order];
+                if(num_items_we_have > max_best_num_alternatives)
+                {
+                    similarity_index[order].resize(distance_order);
+                    break;
+                }
+                num_items_we_have += distanced_items.size();
+                if(num_items_we_have > max_best_num_alternatives)
+                {
+                    std::sort(std::execution::unseq,
+                              distanced_items.begin(),
+                              distanced_items.end(),
+                              [](const std::pair<size_t, char>& one,
+                                 const std::pair<size_t, char>& another) -> bool
+                              {
+                                  const auto& [_, first_op] = one;
+                                  const auto& [__, second_op] = another;
+
+                                  if(first_op == 0 and (second_op not_eq 0))
+                                  {
+                                      return true;
+                                  }
+                                  else if((first_op not_eq 0) and (second_op not_eq 0))
+                                  {
+                                      if(first_op == -1 and second_op == 1)
+                                      {
+                                          return true;
+                                      }
+                                  }
+                                  return false;
+                              });
+                    distanced_items.resize(max_best_num_alternatives - num_items_we_have);
+                }
+            }
+        }
+    }
 #endif
 #ifdef PROFILE_TIMING
     total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
                          std::chrono::high_resolution_clock::now() - chrono)
                          .count();
-    std::cout << "total pre-computation took: " << total_duration << std::endl;
+    std::cout << "pre-computation took: " << total_duration << std::endl;
 #endif
 
-    return similarity_index;
+    return {};
 }
 
 void
 Vocinity::Homophonic_Alternative_Composer::save_precomputed_phoneme_similarity_map(
-    const Unordered_Map<std::string,
-                        Unordered_Map<Matching_Method, std::vector<Word_Alternatives>>>& map,
+    const std::vector<std::vector<std::vector<std::pair<size_t, char>>>>& map,
     const std::filesystem::path& map_path_to_be_exported,
     const bool binary)
 {
@@ -1079,10 +1246,7 @@ Vocinity::Homophonic_Alternative_Composer::save_precomputed_phoneme_similarity_m
     }
 }
 
-Unordered_Map<
-    std::string,
-    Unordered_Map<Vocinity::Homophonic_Alternative_Composer::Matching_Method,
-                  std::vector<Vocinity::Homophonic_Alternative_Composer::Word_Alternatives>>>
+std::vector<std::vector<std::vector<std::pair<size_t, char>>>>
 Vocinity::Homophonic_Alternative_Composer::load_precomputed_phoneme_similarity_map(
     const std::filesystem::path& map_path_to_be_imported)
 {
@@ -1090,18 +1254,14 @@ Vocinity::Homophonic_Alternative_Composer::load_precomputed_phoneme_similarity_m
     assert(file_handle.good() && "file not exists");
     nlohmann::json similarity_map_json;
     file_handle >> similarity_map_json;
-    auto similarity_map = similarity_map_json.get<Unordered_Map<
-        std::string,
-        Unordered_Map<
-            Vocinity::Homophonic_Alternative_Composer::Matching_Method,
-            std::vector<Vocinity::Homophonic_Alternative_Composer::Word_Alternatives>>>>();
+    auto similarity_map = similarity_map_json.get<std::vector<std::vector<std::vector<std::pair<size_t, char>>>>>();
     return similarity_map;
 }
 
 // --------------------------------------------------------------------------------------------------
 
 Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer(
-    const Unordered_Map<std::string, std::string>& phonetics_dictionary)
+    const std::vector<std::pair<std::string, std::string>>& phonetics_dictionary)
     : _impl(std::make_unique<
             Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer_Impl>(
         phonetics_dictionary))
@@ -1112,10 +1272,10 @@ Vocinity::Homophonic_Alternative_Composer::~Homophonic_Alternative_Composer()
 
 void
 Vocinity::Homophonic_Alternative_Composer::set_precomputed_phoneme_similarity_map(
-    Unordered_Map<std::string,
-                  Unordered_Map<Matching_Method, std::vector<Word_Alternatives>>>&& map)
+    std::vector<std::vector<std::vector<std::pair<size_t, char>>>>&& map,
+    const bool levenshtein)
 {
-    _impl->set_precomputed_phoneme_similarity_map(map);
+    _impl->set_precomputed_phoneme_similarity_map(map, levenshtein);
 }
 
 #ifdef SOUNDEX_AVAILABLE

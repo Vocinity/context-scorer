@@ -13,10 +13,10 @@ namespace Vocinity
         class Homophonic_Alternative_Composer_Impl;
 
       public:
-#ifndef ROBIN_HOOD_HASHING_AVAILABLE
+#ifdef ROBIN_HOOD_HASHING_AVAILABLE
 #	define Unordered_Map robin_hood::unordered_flat_map
 #else
-#	define Unordered_Map std::unordered_map
+#define Unordered_Map std::unordered_map
 #endif
         using Word           = std::string;
         using Pronounciation = std::string;
@@ -69,41 +69,42 @@ namespace Vocinity
       public:
         /** @brief <transcription,phonetic_encoding> is for phoneme matching and accepts cmudict encoding. */
         explicit Homophonic_Alternative_Composer(
-            const Unordered_Map<std::string, std::string>& phonetics_dictionary);
+            const std::vector<std::pair<std::string, std::string>>& phonetics_dictionary);
 
         ~Homophonic_Alternative_Composer();
 
       public:
-        static Unordered_Map<std::string, std::string> load_phonetics_dictionary(
+        static std::vector<std::pair<std::string, std::string>> load_phonetics_dictionary(
             const std::filesystem::path& dictionary = "./cmudict.0.7a.txt");
 
-        static Unordered_Map<std::string,
-                             Unordered_Map<Matching_Method, std::vector<Word_Alternatives>>>
+        static std::vector<std::vector<std::vector<std::pair<size_t, char>>>>
         load_precomputed_phoneme_similarity_map(
             const std::filesystem::path& map_path_to_be_imported);
 
         /** @brief Pre-index and just lookup whole cartesian relations which would be computed again and again otherwise. */
         void set_precomputed_phoneme_similarity_map(
-            Unordered_Map<std::string,
-                          Unordered_Map<Matching_Method, std::vector<Word_Alternatives>>>&&
-                map);
-
+            std::vector<std::vector<std::vector<std::pair<size_t, char>>>>&&
+                map,const bool levenshtein=false);
         /**
      * @brief Takes too much time. dictionary is in-memory phonetics dictionary in cmudict form. */
-        static Unordered_Map<std::string,
-                             Unordered_Map<Matching_Method, std::vector<Word_Alternatives>>>
+        static std::vector<std::vector<std::vector<std::pair<size_t, char>>>>
         precompute_phoneme_similarity_map_from_phonetics_dictionary(
-            const Unordered_Map<std::string, std::string>& dictionary);
+            const std::vector<std::pair<std::string, std::string>>& dictionary,
+            const short max_distance               = -1,
+            const ushort max_best_num_alternatives = 0,
+            const bool levenshtein                 = false);
 
-        static Unordered_Map<std::string,
-                             Unordered_Map<Matching_Method, std::vector<Word_Alternatives>>>
+        static std::vector<std::vector<std::vector<std::pair<size_t, char>>>>
         precompute_phoneme_similarity_map_from_phonetics_dictionary(
-            const std::filesystem::path& dictionary = "./cmudict.0.7a.txt");
+            const std::filesystem::path& dictionary,
+            const short max_distance               = -1,
+            const ushort max_best_num_alternatives = 0,
+            const bool levenshtein                 = false);
 
-        static void save_precomputed_phoneme_similarity_map(const Unordered_Map<
-                std::string,
-                Unordered_Map<Matching_Method, std::vector<Word_Alternatives>>>& map,
-            const std::filesystem::path& map_path_to_be_exported, const bool binary=false);
+        static void save_precomputed_phoneme_similarity_map(
+            const std::vector<std::vector<std::vector<std::pair<size_t, char>>>>& map,
+            const std::filesystem::path& map_path_to_be_exported,
+            const bool binary = false);
 
       public:
 #ifdef SOUNDEX_AVAILABLE

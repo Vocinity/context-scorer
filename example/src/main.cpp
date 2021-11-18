@@ -82,12 +82,15 @@ main(int argc, char* argv[])
         return scores;
     };
 
-    const auto& phonetics_dictionary=Vocinity::Homophonic_Alternative_Composer::load_phonetics_dictionary();
-  //  auto similarity_map=Vocinity::Homophonic_Alternative_Composer::precompute_phoneme_similarity_map_from_phonetics_dictionary(phonetics_dictionary);
- //   Vocinity::Homophonic_Alternative_Composer::save_precomputed_phoneme_similarity_map(similarity_map,"./similarity_map.txt",false);
+    const auto& phonetics_dictionary =
+        Vocinity::Homophonic_Alternative_Composer::load_phonetics_dictionary();
+    auto similarity_map = Vocinity::Homophonic_Alternative_Composer::
+        precompute_phoneme_similarity_map_from_phonetics_dictionary(phonetics_dictionary,2,0,false);
+    Vocinity::Homophonic_Alternative_Composer::save_precomputed_phoneme_similarity_map(
+        similarity_map, "./similarity_map.txt", false);
 
     Vocinity::Homophonic_Alternative_Composer composer{phonetics_dictionary};
- //   composer.set_precomputed_phoneme_similarity_map(std::move(similarity_map));
+    composer.set_precomputed_phoneme_similarity_map(std::move(similarity_map));
 
     Vocinity::Homophonic_Alternative_Composer::Instructions instructions;
     instructions.max_distance              = 1;
@@ -146,13 +149,13 @@ main(int argc, char* argv[])
             raw_words = akil::string::split(sentence, ' ');
         }
 
-        auto chrono     = std::chrono::high_resolution_clock::now();
-    //    auto word_combinations    = composer.get_alternatives(sentence, instructions);
-        const double warmup_count =1;// 100;
-      //  for(int warmup = 0; warmup < warmup_count; ++warmup)
-     //   {
-            const auto word_combinations = composer.get_alternatives(sentence, instructions, true);
-      //  }
+        auto chrono = std::chrono::high_resolution_clock::now();
+        //    auto word_combinations    = composer.get_alternatives(sentence, instructions);
+        const double warmup_count = 1; // 100;
+                                       //  for(int warmup = 0; warmup < warmup_count; ++warmup)
+                                       //   {
+        const auto word_combinations = composer.get_alternatives(sentence, instructions, true);
+        //  }
         const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
                                   std::chrono::high_resolution_clock::now() - chrono)
                                   .count();
@@ -200,7 +203,7 @@ main(int argc, char* argv[])
                 for(const auto& alternative : word_alternatives)
                 {
                     const auto& [similar_word, distance, op] = alternative;
-                    auto past_sentence           = combinations[sentence_order][past_item_order];
+                    auto past_sentence         = combinations[sentence_order][past_item_order];
                     past_sentence[block_order] = similar_word;
                     combinations[sentence_order].push_back(past_sentence);
                 }
