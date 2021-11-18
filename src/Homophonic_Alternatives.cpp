@@ -306,7 +306,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                 const auto& matches = _word_by_metaphone_encoding[query_primary_code];
                 for(const auto& match : matches)
                 {
-                    if(strcmp(match.c_str(), query_word.c_str()))
+                    if(not akil::string::are_equal(match, query_word))
                     {
                         result.push_back({match, (query_word.size() - match.size()), "~"});
                     }
@@ -317,7 +317,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                 const auto& matches = _word_by_metaphone_encoding[query_alternative_code];
                 for(const auto& match : matches)
                 {
-                    if(strcmp(match.c_str(), query_word.c_str()))
+                    if(not akil::string::are_equal(match, query_word))
                     {
                         result.push_back({match, (query_word.size() - match.size()), "~"});
                     }
@@ -338,18 +338,18 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
 
             const auto& [dictionary_primary_code, dictionary_alternate_code] =
                 dictionary_codes;
-            if(not strcmp(dictionary_primary_code.c_str(), query_primary_code.c_str()))
+            if(akil::string::are_equal(dictionary_primary_code, query_primary_code))
             {
-                if(strcmp(query_word.c_str(), dictionary_word.c_str()))
+                if(not akil::string::are_equal(query_word, dictionary_word))
                 {
                     result.push_back(
                         {dictionary_word, (query_word.size() - dictionary_word.size()), "~"});
                     continue;
                 }
             }
-            if(not strcmp(dictionary_alternate_code.c_str(), query_alternative_code.c_str()))
+            if(akil::string::are_equal(dictionary_alternate_code, query_alternative_code))
             {
-                if(strcmp(query_word.c_str(), dictionary_word.c_str()))
+                if(not akil::string::are_equal(query_word, dictionary_word))
                 {
                     result.push_back(
                         {dictionary_word, (query_word.size() - dictionary_word.size()), "~"});
@@ -418,7 +418,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
             const auto& matches = _word_by_soundex_encoding[query_code];
             for(const auto& match : matches)
             {
-                if(strcmp(match.c_str(), query_word.c_str()))
+                if(not akil::string::are_equal(match, query_word))
                 {
                     result.push_back({match, (query_word.size() - match.size()), "~"});
                 }
@@ -434,9 +434,9 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
             //                continue;
             //            }
 
-            if(not strcmp(dictionary_code.c_str(), query_code.c_str()))
+            if(akil::string::are_equal(dictionary_code, query_code))
             {
-                if(strcmp(query_word.c_str(), dictionary_word.c_str()))
+                if(not akil::string::are_equal(query_word, dictionary_word))
                 {
                     result.push_back(
                         {dictionary_word,
@@ -463,9 +463,10 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
         {
             const auto query_word_indice = _phonemes_by_word.at(query_word);
             const auto& distanced_items  = _phoneme_index.at(query_word_indice);
-            const ushort max_distance    = instructions.max_distance > -1
-                                               ? std::min((size_t)instructions.max_distance,distanced_items.size())
-                                               : distanced_items.size();
+            const ushort max_distance =
+                instructions.max_distance > -1
+                    ? std::min((size_t) instructions.max_distance, distanced_items.size())
+                    : distanced_items.size();
             for(ushort distance = 0; distance <= max_distance; ++distance)
             {
                 const auto& items_of_distance = distanced_items.at(distance);
@@ -511,10 +512,9 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                          dictionary_word_phonemes,
                          dictionary_word_phonemes_count] = dictionary_pronounciation_info;
 
-            if(not strcmp(dictionary_word_pronounciation.c_str(),
-                          query_pronounciation.c_str()))
+            if(akil::string::are_equal(dictionary_word_pronounciation, query_pronounciation))
             {
-                if(not strcmp(dictionary_word.c_str(), query_word.c_str()))
+                if(akil::string::are_equal(dictionary_word, query_word))
                 {
                     return;
                 }
@@ -604,9 +604,10 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
         {
             const auto query_word_indice = _phonemes_by_word.at(query_word);
             const auto& distanced_items  = _phoneme_index.at(query_word_indice);
-            const ushort max_distance    = instructions.max_distance > -1
-                                               ? std::min((size_t)instructions.max_distance,distanced_items.size())
-                                               : distanced_items.size();
+            const ushort max_distance =
+                instructions.max_distance > -1
+                    ? std::min((size_t) instructions.max_distance, distanced_items.size())
+                    : distanced_items.size();
             for(ushort distance = 0; distance <= max_distance; ++distance)
             {
                 const auto& items_of_distance = distanced_items.at(distance);
@@ -652,10 +653,10 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                          dictionary_word_phonemes_count] = dictionary_pronounciation_info;
             if(dictionary_word_phonemes_count == query_phonemes_count)
             {
-                if(not strcmp(dictionary_word_pronounciation.c_str(),
-                              query_pronounciation.c_str()))
+                if(akil::string::are_equal(dictionary_word_pronounciation,
+                                           query_pronounciation))
                 {
-                    if(strcmp(dictionary_word.c_str(), query_word.c_str()))
+                    if(not akil::string::are_equal(dictionary_word, query_word))
                     {
                         const std::lock_guard lock(mutex);
                         result.push_back({dictionary_word, 0, "~"});
@@ -786,7 +787,9 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
             for(ushort query_phoneme_order = 0; query_phoneme_order < query_phonemes_count;
                 ++query_phoneme_order)
             {
-                const auto& query_phoneme = query_phonemes[query_phoneme_order];
+                const auto& query_phoneme       = query_phonemes[query_phoneme_order];
+                const auto& query_phoneme_size  = query_phoneme.size();
+                const auto& query_phoneme_array = query_phoneme.c_str();
 
                 for(ushort dictionary_phoneme_order = last_matched_dict_phoneme_order;
                     dictionary_phoneme_order < dictionary_phonemes_count;
@@ -795,10 +798,11 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                     const auto& dictionary_phoneme =
                         dictionary_phonemes[dictionary_phoneme_order];
 
-                    if(dictionary_phoneme.size() == query_phoneme.size())
+                    if(dictionary_phoneme.size() == query_phoneme_size)
                     {
-                        if(not strcmp(dictionary_phonemes[dictionary_phoneme_order].c_str(),
-                                      query_phoneme.c_str()))
+                        if(not memcmp(dictionary_phonemes[dictionary_phoneme_order].c_str(),
+                                      query_phoneme_array,
+                                      query_phoneme_size))
                         {
                             if(dictionary_phonemes_count - (dictionary_phoneme_order)
                                == query_phonemes_count - query_phoneme_order)
@@ -819,11 +823,15 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
         {
             for(const auto& query_phoneme : query_phonemes)
             {
+                const auto& query_phoneme_size  = query_phoneme.size();
+                const auto& query_phoneme_array = query_phoneme.c_str();
                 for(const auto& dictionary_phoneme : dictionary_phonemes)
                 {
-                    if(dictionary_phoneme.size() == query_phoneme.size())
+                    if(dictionary_phoneme.size() == query_phoneme_size)
                     {
-                        if(not strcmp(dictionary_phoneme.c_str(), query_phoneme.c_str()))
+                        if(not memcmp(dictionary_phoneme.c_str(),
+                                      query_phoneme_array,
+                                      query_phoneme_size))
                         {
                             ++common_phonemes;
                             break;
@@ -965,10 +973,10 @@ Vocinity::Homophonic_Alternative_Composer::
 
             if(dictionary_word_phonemes_count == query_phonemes_count)
             {
-                if(not strcmp(dictionary_word_pronounciation.c_str(),
-                              query_pronounciation.c_str()))
+                if(akil::string::are_equal(dictionary_word_pronounciation,
+                                           query_pronounciation))
                 {
-                    if(strcmp(dictionary_word.c_str(), query_word.c_str()))
+                    if(not akil::string::are_equal(dictionary_word, query_word))
                     {
                         similarity_index[query_word_order][0].push_back({dictionary_order, 0});
                         continue;
@@ -1040,10 +1048,10 @@ Vocinity::Homophonic_Alternative_Composer::
 
             if(dictionary_word_phonemes_count == query_phonemes_count)
             {
-                if(not strcmp(dictionary_word_pronounciation.c_str(),
-                              query_pronounciation.c_str()))
+                if(akil::string::are_equal(dictionary_word_pronounciation,
+                                           query_pronounciation))
                 {
-                    if(strcmp(dictionary_word.c_str(), query_word.c_str()))
+                    if(not akil::string::are_equal(dictionary_word, query_word))
                     {
                         similarity_index[query_word_order][0].push_back({dictionary_order, 0});
                         continue;
