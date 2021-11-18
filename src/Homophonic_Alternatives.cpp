@@ -471,7 +471,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                 const auto& items_of_distance = distanced_items.at(distance);
                 const auto result_range_begin = result.size();
                 result.resize(result_range_begin + items_of_distance.size());
-#ifdef CPP17_AVAILABLE
+#	ifdef CPP17_AVAILABLE
                 std::transform(std::execution::unseq,
                                items_of_distance.cbegin(),
                                items_of_distance.cend(),
@@ -483,7 +483,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                                        distance,
                                        (item.second ? (item.second > 0 ? "+" : "-") : "~")};
                                });
-#else
+#	else
                 std::transform(items_of_distance.cbegin(),
                                items_of_distance.cend(),
                                result.end(),
@@ -1091,9 +1091,9 @@ Vocinity::Homophonic_Alternative_Composer::
 
 
 #ifdef PROFILE_TIMING
-    chrono                  = std::chrono::high_resolution_clock::now();
-    uint64_t progress_order = 0;
+    chrono = std::chrono::high_resolution_clock::now();
 #endif
+    uint64_t progress_order = 0;
 #ifdef __TBB_parallel_for_H
     tbb::parallel_for(
         tbb::blocked_range<size_t>(0, phonemes_vector.size()),

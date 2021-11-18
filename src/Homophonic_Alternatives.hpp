@@ -3,7 +3,7 @@
 
 #include <akil/aMisc.hpp>
 
-#define PROFILE_TIMING 1
+//#define PROFILE_TIMING 1
 
 namespace Vocinity
 {
