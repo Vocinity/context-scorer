@@ -1238,9 +1238,8 @@ Vocinity::Homophonic_Alternative_Composer::save_precomputed_phoneme_similarity_m
     if(binary)
     {
         const auto& cbor = nlohmann::json::to_cbor(j_map);
-        //  std::cout << cbor << std::endl;
-        std::ofstream file_handle(map_path_to_be_exported);
-        file_handle << cbor;
+        std::ofstream file_handle(map_path_to_be_exported, std::ios::binary | std::ios::out);
+        std::copy(cbor.cbegin(), cbor.cend(), std::ostreambuf_iterator<char>(file_handle));
     }
     else
     {
@@ -1254,14 +1253,30 @@ Vocinity::Homophonic_Alternative_Composer::load_precomputed_phoneme_similarity_m
     const std::filesystem::path& map_path_to_be_imported,
     const bool binary)
 {
-    std::ifstream file_handle(map_path_to_be_imported);
-    assert(file_handle.good() && "file not exists");
     nlohmann::json similarity_map_json;
-    file_handle >> similarity_map_json;
-    auto similarity_map =
-        similarity_map_json
-            .get<std::vector<std::vector<std::vector<std::pair<size_t, char>>>>>();
-    return similarity_map;
+    if(binary)
+    {
+        std::ifstream file_handle(map_path_to_be_imported, std::ios::binary | std::ios::in);
+        assert(file_handle.good() && "file not exists");
+        const auto file_size = std::filesystem::file_size(map_path_to_be_imported);
+        if(file_size == 0)
+        {
+            std::cout << "File is empty: " << map_path_to_be_imported << std::endl;
+            return {};
+        }
+        std::vector<std::uint8_t> buffer(file_size);
+        file_handle.read(reinterpret_cast<char*>(buffer.data()), file_size);
+        similarity_map_json = nlohmann::json::from_cbor(buffer);
+    }
+    else
+    {
+        std::ifstream file_handle(map_path_to_be_imported, std::ios::in);
+        assert(file_handle.good() && "file not exists");
+        file_handle >> similarity_map_json;
+    }
+
+    return similarity_map_json
+        .get<std::vector<std::vector<std::vector<std::pair<size_t, char>>>>>();
 }
 
 // --------------------------------------------------------------------------------------------------
@@ -1281,6 +1296,10 @@ Vocinity::Homophonic_Alternative_Composer::set_precomputed_phoneme_similarity_ma
     std::vector<std::vector<std::vector<std::pair<size_t, char>>>>&& map,
     const bool levenshtein)
 {
+    if(map.empty())
+    {
+        return;
+    }
     _impl->set_precomputed_phoneme_similarity_map(map, levenshtein);
 }
 
