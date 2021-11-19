@@ -308,7 +308,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                 {
                     if(not akil::string::are_equal(match, query_word))
                     {
-                        result.push_back({match, (query_word.size() - match.size()), "~"});
+                        result.push_back({match, std::abs(((int)query_word.size() - (int)match.size())), "~"});
                     }
                 }
             }
@@ -319,7 +319,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                 {
                     if(not akil::string::are_equal(match, query_word))
                     {
-                        result.push_back({match, (query_word.size() - match.size()), "~"});
+                        result.push_back({match, std::abs(((int)query_word.size() - (int)match.size())), "~"});
                     }
                 }
             }
@@ -343,7 +343,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                 if(not akil::string::are_equal(query_word, dictionary_word))
                 {
                     result.push_back(
-                        {dictionary_word, (query_word.size() - dictionary_word.size()), "~"});
+                        {dictionary_word,std::abs(((int)query_word.size() - (int)dictionary_word.size())), "~"});
                     continue;
                 }
             }
@@ -352,7 +352,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                 if(not akil::string::are_equal(query_word, dictionary_word))
                 {
                     result.push_back(
-                        {dictionary_word, (query_word.size() - dictionary_word.size()), "~"});
+                        {dictionary_word, std::abs(((int)query_word.size() - (int)dictionary_word.size())), "~"});
                 }
             }
         }
@@ -420,7 +420,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
             {
                 if(not akil::string::are_equal(match, query_word))
                 {
-                    result.push_back({match, (query_word.size() - match.size()), "~"});
+                    result.push_back({match, std::abs(((int)query_word.size() - (int)match.size())), "~"});
                 }
             }
             return result;
@@ -440,7 +440,7 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                 {
                     result.push_back(
                         {dictionary_word,
-                         0 /*std::abs((short) (query_word.size() - dictionary_word.size()))*/,
+                         std::abs(((int)query_word.size() - (int)dictionary_word.size())),
                          "~"});
                 }
             }

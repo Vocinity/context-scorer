@@ -74,8 +74,11 @@ namespace Vocinity
         ~Homophonic_Alternative_Composer();
 
       public:
+        // https://cmusphinx.github.io/wiki/tutorialdict/
+        // https://github.com/cmusphinx/g2p-seq2seq
+        // https://github.com/AdolfVonKleist/Phonetisaurus
         static std::vector<std::pair<std::string, std::string>> load_phonetics_dictionary(
-            const std::filesystem::path& dictionary = "./cmudict.0.7a.txt");
+            const std::filesystem::path& dictionary = "./cmudict.0.7b.txt");
 
         static std::vector<std::vector<std::vector<std::pair<size_t, char>>>>
         load_precomputed_phoneme_similarity_map(
