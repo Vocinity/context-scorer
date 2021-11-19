@@ -84,11 +84,12 @@ main(int argc, char* argv[])
 
     const auto& phonetics_dictionary =
         Vocinity::Homophonic_Alternative_Composer::load_phonetics_dictionary(
-            "cmudict.0.7a.txt");
+            "/opt/cloud/projects/vocinity/models/context-scorer/cmudict-0.7b.txt");
+
     Vocinity::Homophonic_Alternative_Composer composer{phonetics_dictionary};
     Vocinity::Homophonic_Alternative_Composer::Instructions instructions;
-    instructions.max_distance              = 1;
-    instructions.max_best_num_alternatives = 0;
+    instructions.max_distance              = 2;
+    instructions.max_best_num_alternatives = 10;
     //instructions.dismissed_word_indices    = {0, 1, 2, 3};
     instructions.method =
         Vocinity::Homophonic_Alternative_Composer::Matching_Method::Phoneme_Levenshtein;
@@ -104,7 +105,7 @@ main(int argc, char* argv[])
                     phonetics_dictionary, 2, 0, false);
             Vocinity::Homophonic_Alternative_Composer::save_precomputed_phoneme_similarity_map(
                 similarity_map_composed,
-                "./similarity_map-dist2-phoneme_transcription.cbor",
+                "./similarity_map-cmudict07b-dist2-phoneme_transcription.cbor",
                 true);
         }
         else if(instructions.method
@@ -116,7 +117,7 @@ main(int argc, char* argv[])
                     phonetics_dictionary, 2, 0, true);
             Vocinity::Homophonic_Alternative_Composer::save_precomputed_phoneme_similarity_map(
                 similarity_map_composed,
-                "./similarity_map-dist2-phoneme_levenshtein.cbor",
+                "./similarity_map-cmudict07b-dist2-phoneme_levenshtein.cbor",
                 true);
         }
 
@@ -129,7 +130,7 @@ main(int argc, char* argv[])
         auto similarity_map =
             Vocinity::Homophonic_Alternative_Composer::load_precomputed_phoneme_similarity_map(
                 "/opt/cloud/projects/vocinity/models/context-scorer/"
-                "similarity_map-dist2-phoneme_transcription.cbor",
+                "similarity_map-cmudict07b-dist2-phoneme_transcription.cbor",
                 true);
 
         composer.set_precomputed_phoneme_similarity_map(std::move(similarity_map), false);
@@ -140,7 +141,7 @@ main(int argc, char* argv[])
         auto similarity_map =
             Vocinity::Homophonic_Alternative_Composer::load_precomputed_phoneme_similarity_map(
                 "/opt/cloud/projects/vocinity/models/context-scorer/"
-                "similarity_map-dist2-phoneme_levenshtein.cbor",
+                "similarity_map-cmudict07b-dist2-phoneme_levenshtein.cbor",
                 true);
 
         composer.set_precomputed_phoneme_similarity_map(std::move(similarity_map), true);
@@ -196,8 +197,8 @@ main(int argc, char* argv[])
             raw_words = akil::string::split(sentence, ' ');
         }
 
+        auto warmup_combinations    = composer.get_alternatives(sentence, instructions);
         auto chrono = std::chrono::high_resolution_clock::now();
-        //    auto word_combinations    = composer.get_alternatives(sentence, instructions);
         const double warmup_count = 1; // 100;
                                        //  for(int warmup = 0; warmup < warmup_count; ++warmup)
                                        //   {
