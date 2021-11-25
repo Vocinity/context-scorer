@@ -1,0 +1,3 @@
+[submodule "3rdparty/lightseq"]
+	path = 3rdparty/lightseq
+	url = https://github.com/isgursoy/lightseq

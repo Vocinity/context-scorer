@@ -31,15 +31,11 @@ for(_a, CUDA_COMPUTE_ARCH):{
 CUDA_SDK= /usr/local/cuda/
 !USE_TORCH_CUDA_RT{
     QMAKE_LIBDIR += $$CUDA_SDK/lib64/
-    LIBS+= -lcudart -lcufft -lcublas -lcurand -lcusolver
+    LIBS+= -lcufft -lcublas -lcurand -lcusolver
 }
 CUDA_OBJECTS_DIR = ${OBJECTS_DIR}
 CUDA_INC = $$join(INCLUDEPATH,'" -I"','-I"','"')
 CUDA_LIBS += $$join(LIBS,'.so ', '', '.so')
-
-THRUST_AVAILABLE{
-    INCLUDEPATH+=$${CUDA_SDK}/targets/x86_64-linux/include
-}
 
 # No spaces in path names
 CUDA_SOURCES+=
