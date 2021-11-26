@@ -8,11 +8,9 @@ namespace Vocinity
     class Tokenizer;
     class Context_Scorer
     {
-      private:
-        class Scorer_Backend;
-
       public:
         enum class Inference_Backend : short { CPU = 0, CUDA = 1 };
+        enum Precision : short { FP32 = 0, FP16 = 1/*, INT8=2*/ };
         /**
          * OpenAI family is for GPT and all variants of GPT2 including distilgpt2.
          * All variants of GPT-Neo and 6J require you to set Neo as family.
@@ -24,6 +22,9 @@ namespace Vocinity
         using Attention_Mask    = torch::Tensor;
         using Actual_Token_Size = uint64_t;
         using Encoded_Sequence  = std::tuple<Input_Ids, Attention_Mask, Actual_Token_Size>;
+
+    public:
+      class Scorer_Backend;
 
       public:
         struct Score
@@ -71,7 +72,8 @@ namespace Vocinity
         explicit Context_Scorer(
             const std::filesystem::path& scorer_model_path,
             const Model_Family& family                   = Model_Family::OpenAI,
-            const Tokenizer_Configuration& encoding_conf = {}
+            const Tokenizer_Configuration& encoding_conf = {},
+            const Precision precision=Precision::FP32
 #ifdef CUDA_AVAILABLE
             ,
             const Inference_Backend device = Inference_Backend::CPU
@@ -89,7 +91,8 @@ namespace Vocinity
         Encoded_Sequence encode(const std::string& sentence, const bool parallel = false);
 
       private:
-        std::unique_ptr<Scorer_Backend> _torch_runtime;
+        std::unique_ptr<Scorer_Backend> _inference_backend;
+        const Precision _precision;
         c10::DeviceType _device = torch::kCPU;
         std::mutex _instance_mutex;
         std::unique_ptr<Tokenizer> _tokenizer;

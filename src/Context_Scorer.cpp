@@ -5,35 +5,10 @@
 class Vocinity::Context_Scorer::Scorer_Backend
 {
   public:
-    Scorer_Backend(const std::filesystem::__cxx11::path& scorer_model_path = std::string()
-#ifdef CUDA_AVAILABLE
-                       ,
-                   const Inference_Backend device = Inference_Backend::CPU
-#endif
-    )
-    {
-        if(not scorer_model_path.empty())
-        {
-            _scorer_model = torch::jit::load(scorer_model_path.string());
-#ifdef CUDA_AVAILABLE
-            if(device == Inference_Backend::CUDA)
-            {
-                _scorer_model.to(torch::kCUDA);
-            }
-            else
-#endif
-            {
-                _scorer_model.to(torch::kCPU);
-            }
-
-            _scorer_model.eval();
-        }
-    }
-
-    ~Scorer_Backend() = default;
+    virtual ~Scorer_Backend() = default;
 
   public:
-    at::Tensor score(const at::Tensor& input_ids, const at::Tensor& att_mask);
+    virtual at::Tensor score(const at::Tensor& input_ids, const at::Tensor& att_mask) = 0;
 
     static constexpr ushort get_max_sequence_length()
     {
@@ -49,7 +24,54 @@ class Vocinity::Context_Scorer::Scorer_Backend
     {
         return 512;
     }
+};
 
+class Scorer_Torch_Backend : public Vocinity::Context_Scorer::Scorer_Backend
+{
+  public:
+    Scorer_Torch_Backend(
+        const std::filesystem::__cxx11::path& scorer_model_path = std::string()
+#ifdef CUDA_AVAILABLE
+            ,
+        const Vocinity::Context_Scorer::Inference_Backend device =
+            Vocinity::Context_Scorer::Inference_Backend::CPU
+#endif
+    )
+    {
+        if(scorer_model_path.empty())
+        {
+            throw std::runtime_error("scorer_model_path can not be empty");
+        }
+        _scorer_model = torch::jit::load(scorer_model_path.string());
+#ifdef CUDA_AVAILABLE
+        if(device == Vocinity::Context_Scorer::Inference_Backend::CUDA)
+        {
+            _scorer_model.to(torch::kCUDA);
+        }
+        else
+#endif
+        {
+            _scorer_model.to(torch::kCPU);
+        }
+
+        _scorer_model.eval();
+    }
+
+    ~Scorer_Torch_Backend() override = default;
+
+  public:
+    at::Tensor score(const at::Tensor& input_ids, const at::Tensor& att_mask) override
+    {
+        const std::lock_guard<std::mutex> lock(instanceMutex);
+        return _scorer_model
+            .forward(std::vector<torch::jit::IValue>{torch::jit::IValue(input_ids),
+                                                     torch::jit::IValue(att_mask)})
+            .toTuple()
+            ->elements()
+            .at(0)
+            .toTensor()
+            .detach();
+    }
 
   private:
     torch::jit::script::Module _scorer_model;
@@ -57,20 +79,140 @@ class Vocinity::Context_Scorer::Scorer_Backend
     c10::InferenceMode guard{true};
 };
 
+#ifdef CUDA_AVAILABLE
+#ifdef LIGHTSEQ_AVAILABLE
+#	include "../3rdparty/lightseq/lightseq/inference/model/gpt_encoder.h"
+#	include "../3rdparty/lightseq/lightseq/inference/tools/util.h"
+
+template <lightseq::cuda::OperationType optype>
+class Scorer_LightSeq_Backend : public Vocinity::Context_Scorer::Scorer_Backend
+{
+    using Batch_Size    = int;
+    using Batch_Seq_Len = int;
+
+  public:
+    Scorer_LightSeq_Backend(
+        const std::filesystem::__cxx11::path& scorer_model_path = std::string(),
+        const int max_batch_size                                = 128)
+    {
+        if(scorer_model_path.empty())
+        {
+            throw std::runtime_error("scorer_model_path can not be empty");
+        }
+        cudaSetDevice(0);
+        cudaStreamCreate(&stream_);
+        cudaStreamCreate(&cache_stream_);
+        cublasCreate(&hd_);
+        cublasSetStream(hd_, stream_);
+
+        lightseq::cuda::GptWeight<optype> tw_;
+        // saved in custom proto file
+        std::string res = tw_.initializing(scorer_model_path);
+        if(!res.empty())
+        {
+            throw std::runtime_error(res);
+        }
+
+        d_input_  = std::vector<int>(max_batch_size * tw_._max_step, 0);
+        d_sample_ = std::vector<int>(max_batch_size * tw_._max_step, 0);
+        d_ppl_    = std::vector<float>(max_batch_size, 0.f);
+
+        encoder_ = std::make_shared<lightseq::cuda::GptEncoder<optype>>(
+            max_batch_size,
+            reinterpret_cast<int*>(thrust::raw_pointer_cast(d_input_.data())),
+            reinterpret_cast<float*>(thrust::raw_pointer_cast(d_ppl_.data())),
+            reinterpret_cast<int*>(thrust::raw_pointer_cast(d_sample_.data())),
+            tw_,
+            stream_,
+            cache_stream_,
+            hd_);
+        res = encoder_->check();
+        if(!res.empty())
+        {
+            throw std::runtime_error(res);
+        }
+
+        long buf_bytesize = encoder_->compute_buffer_bytesize();
+        d_buf_            = std::vector<int>(buf_bytesize / sizeof(int) + 1, 0);
+        encoder_->init_buffer(
+            reinterpret_cast<void*>(thrust::raw_pointer_cast(d_buf_.data())));
+        cudaStreamSynchronize(stream_);
+    }
+
+    ~Scorer_LightSeq_Backend() override = default;
+
+  public:
+    at::Tensor score(const at::Tensor& input_ids, const at::Tensor& att_mask) override
+    {
+        const auto& [host_input, batch_size, batch_seq_len] =
+            prepare_material(input_ids);
+
+#	ifdef QT_DEBUG
+        auto start = std::chrono::high_resolution_clock::now();
+#	endif
+        // copy inputs from cpu memory to gpu memory
+        cudaMemcpyAsync(reinterpret_cast<int*>(thrust::raw_pointer_cast(d_input_.data())),
+                        host_input.data(),
+                        sizeof(int) * batch_size * batch_seq_len,
+                        cudaMemcpyHostToDevice,
+                        stream_);
+        encoder_->run_one_infer(batch_size, batch_seq_len);
+
+#	ifdef QT_DEBUG
+        lightseq::cuda::print_time_duration(start, "one infer time", stream_);
+        lightseq::cuda::print_vec(d_ppl_.data(), "ppl", batch_size);
+#	endif
+        return torch::Tensor{};
+    }
+
+  private:
+    static std::tuple<std::vector<int>, Batch_Size, Batch_Seq_Len> prepare_material(
+        const at::Tensor& input_ids)
+    {
+        std::tuple<std::vector<int>, Batch_Size, Batch_Seq_Len> result;
+        auto& [input_ids_vec, batch_size, batch_seq_len] = result;
+
+                // calculate batches
+        std::cout<<input_ids<<std::endl;
+
+        input_ids_vec = std::vector<int>(batch_size * batch_seq_len, 0);
+        for(int i = 0; i < batch_size; i++)
+        {
+            for(int j = 0; j < batch_seq_len; j++)
+            {
+                int idx = i * batch_seq_len + j;
+                // fin >> input_ids_vec[idx];
+            }
+        }
+        return result;
+    }
+
+
+  private:
+    cudaStream_t stream_;
+    cudaStream_t cache_stream_;
+    cublasHandle_t hd_;
+    std::shared_ptr<lightseq::cuda::GptEncoder<optype>> encoder_;
+    thrust::device_vector<int> d_input_;
+    thrust::device_vector<int> d_sample_;
+    thrust::device_vector<float> d_ppl_;
+    thrust::device_vector<int> d_buf_;
+};
+#endif
+#endif
+
 Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_model_path,
                                          const Model_Family& family,
-                                         const Tokenizer_Configuration& encoding_conf
+                                         const Tokenizer_Configuration& encoding_conf,
+                                         const Precision precision
 #ifdef CUDA_AVAILABLE
                                          ,
                                          const Inference_Backend device
 #endif
                                          )
-    :
+    : _precision(precision)
 #ifdef CUDA_AVAILABLE
-    _torch_runtime(std::make_unique<Scorer_Backend>(scorer_model_path, device))
     , _device(device == Inference_Backend::CUDA ? torch::kCUDA : torch::kCPU)
-#else
-    : _torch_runtime(std::make_unique<Scorer_Backend>(scorer_model_path))
 #endif
     , _tokenizer(std::make_unique<Tokenizer>(encoding_conf.vocab_file,
                                              encoding_conf.merge_file,
@@ -80,7 +222,34 @@ Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_mod
                                              encoding_conf.unk_token_str,
                                              encoding_conf.mask_token_str))
     , _family(family)
-{}
+{
+#ifdef CUDA_AVAILABLE
+    if(device == Inference_Backend::CUDA)
+    {
+
+#ifdef LIGHTSEQ_AVAILABLE
+        if(precision == Precision::FP16)
+        {
+            _inference_backend = std::make_unique<
+                Scorer_LightSeq_Backend<lightseq::cuda::OperationType::FP16>>(
+                scorer_model_path);
+        }
+        else
+        {
+            _inference_backend = std::make_unique<
+                Scorer_LightSeq_Backend<lightseq::cuda::OperationType::FP32>>(
+                scorer_model_path);
+        }
+#else
+        //
+#endif
+    }
+    else
+#endif
+    {
+        _inference_backend = std::make_unique<Scorer_Torch_Backend>(scorer_model_path);
+    }
+}
 
 Vocinity::Context_Scorer::~Context_Scorer()
 {}
@@ -100,28 +269,14 @@ Vocinity::Context_Scorer::optimize_parallelization_policy_for_use_of_single_inst
     at::set_num_threads(physical_cores);
 }
 
-torch::Tensor
-Vocinity::Context_Scorer::Scorer_Backend::score(const at::Tensor& input_ids,
-                                                const at::Tensor& att_mask)
-{
-    const std::lock_guard<std::mutex> lock(instanceMutex);
-    return _scorer_model
-        .forward(std::vector<torch::jit::IValue>{torch::jit::IValue(input_ids),
-                                                 torch::jit::IValue(att_mask)})
-        .toTuple()
-        ->elements()
-        .at(0)
-        .toTensor()
-        .detach();
-}
-
 #include <torch/csrc/api/include/torch/nn/functional/loss.h>
 
 Vocinity::Context_Scorer::Score
 Vocinity::Context_Scorer::score(const std::string& sentence, const bool per_char_normalized)
 {
     auto [input_ids, input_mask, actual_token_size] = encode(sentence);
-    const unsigned long sequence_length             = input_ids.size(-1);
+
+    const unsigned long sequence_length = input_ids.size(-1);
     if(_family == Model_Family::Neo)
     {
         input_ids  = input_ids.unsqueeze(0);
@@ -129,22 +284,29 @@ Vocinity::Context_Scorer::score(const std::string& sentence, const bool per_char
     }
 
     std::vector<Score> total_score;
-    for(size_t i = 0; i < sequence_length; i += _torch_runtime->get_stride())
+    for(size_t i = 0; i < sequence_length; i += _inference_backend->get_stride())
     {
         const auto begin_loc = i;
         const auto end_loc =
-            std::min(i + _torch_runtime->get_max_sequence_length(), sequence_length);
+            std::min(i + _inference_backend->get_max_sequence_length(), sequence_length);
         const auto current_actual_token_end_loc =
             std::min(end_loc, std::max(actual_token_size + 2 - begin_loc, (unsigned long) 0));
-        const auto trg_len = end_loc - i;
-        const auto& current_input_ids =
-            input_ids.index({Slice(begin_loc, end_loc)}).to(_device);
-        const auto& current_att_mask =
-            input_mask.index({Slice(begin_loc, end_loc)}).to(_device);
-        auto target_ids = current_input_ids.clone();
-        target_ids.index_put_({Slice(None, -trg_len)}, _torch_runtime->get_label_ignore_id());
+        const auto trg_len            = end_loc - i;
+        const auto& current_input_ids = input_ids.index({Slice(begin_loc, end_loc)});
+        const auto& current_att_mask  = input_mask.index({Slice(begin_loc, end_loc)});
+        auto target_ids               = current_input_ids.clone();
+        target_ids.index_put_({Slice(None, -trg_len)},
+                              _inference_backend->get_label_ignore_id());
 
-        const auto& logits = _torch_runtime->score(current_input_ids, current_att_mask);
+#ifndef CUDA_AVAILABLE
+        current_input_ids.to(_device);
+        current_att_mask.to(_device);
+#endif
+        const auto& logits = _inference_backend->score(current_input_ids, current_att_mask);
+        if(not logits.numel())
+        {
+            continue;
+        }
 
         const auto& loss      = process_labels(target_ids, logits);
         const auto& log_probs = torch::nn::functional::log_softmax(
@@ -156,7 +318,8 @@ Vocinity::Context_Scorer::score(const std::string& sentence, const bool per_char
             const auto& out_mask = input_ids.index({Slice(
                 std::min(std::max((unsigned long) 1, begin_loc), current_actual_token_end_loc),
                 current_actual_token_end_loc)});
-            target_log_probs     = log_probs.gather(-1, out_mask.unsqueeze(-1)).squeeze(-1);
+            target_log_probs =
+                log_probs.gather(-1, out_mask.unsqueeze(-1)).squeeze(-1).to(torch::kCPU);
         }
         else
         {
@@ -167,7 +330,8 @@ Vocinity::Context_Scorer::score(const std::string& sentence, const bool per_char
                                   current_actual_token_end_loc)})
                     .unsqueeze(0)
                     .unsqueeze(-1);
-            target_log_probs = log_probs.gather(-1, out_mask).squeeze(-1).squeeze(0);
+            target_log_probs =
+                log_probs.gather(-1, out_mask).squeeze(-1).squeeze(0).to(torch::kCPU);
         }
 
         Score score;
@@ -181,7 +345,7 @@ Vocinity::Context_Scorer::score(const std::string& sentence, const bool per_char
         const auto mean_score =
             current_actual_token_end_loc > 0
                 ? target_log_probs.logsumexp(0) - std::log(current_actual_token_end_loc - 1)
-                : torch::tensor(0).to(_device);
+                : torch::tensor(0);
         score.mean = mean_score.exp().item().toDouble();
 
         const auto gmean_score = target_log_probs.mean(0);
@@ -190,7 +354,7 @@ Vocinity::Context_Scorer::score(const std::string& sentence, const bool per_char
         const auto hmean_score = current_actual_token_end_loc > 0
                                      ? target_log_probs.neg().logsumexp(0).neg()
                                            + std::log(current_actual_token_end_loc - 1)
-                                     : torch::tensor(0).to(_device);
+                                     : torch::tensor(0);
         score.h_mean           = hmean_score.item().toDouble();
 
         score.loss = loss.exp().item().toDouble();
@@ -261,7 +425,7 @@ Vocinity::Context_Scorer::encode(const std::string& sentence, const bool paralle
     if(parallel)
     {
 #ifdef CPP17_AVAILABLE
-        std::transform(std::execution::par_unseq,
+        std::transform(std::execution::unseq,
                        tokens.begin(),
                        tokens.end(),
                        ids.begin() + 1,
@@ -291,9 +455,9 @@ Vocinity::Context_Scorer::encode(const std::string& sentence, const bool paralle
     const uint64_t padded_token_size = ids.size();
 
     const uint64_t full_sequence_size =
-        (padded_token_size % _torch_runtime->get_max_sequence_length())
-            ? _torch_runtime->get_max_sequence_length()
-                  - (padded_token_size % _torch_runtime->get_max_sequence_length())
+        (padded_token_size % _inference_backend->get_max_sequence_length())
+            ? _inference_backend->get_max_sequence_length()
+                  - (padded_token_size % _inference_backend->get_max_sequence_length())
                   + padded_token_size
             : padded_token_size;
     auto full_sequence = torch::full(full_sequence_size,
@@ -305,5 +469,5 @@ Vocinity::Context_Scorer::encode(const std::string& sentence, const bool paralle
     auto input_mask = torch::zeros(full_sequence_size);
     input_mask.index_put_({Slice(None, padded_token_size)}, 1);
 
-    return {full_sequence.to(_device), input_mask.to(_device), actual_token_size};
+    return {full_sequence, input_mask, actual_token_size};
 }

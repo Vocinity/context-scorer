@@ -150,18 +150,12 @@ unix{
         }
     }
 
-    !CUDA_OFF{
-        if(exists("/usr/local/cuda/version.txt")|exists("/usr/local/cuda/version.json")){
-            message("FOUND CUDA")
-            DEFINES+=CUDA_AVAILABLE
-            CONFIG+=CUDA_AVAILABLE
-            extensionProcessor(THRUST)
-            include(cuda.pri)
-        }
-    }
-
     Release:include(conan.pri)
     Debug:include(conan.pri)
+
+    PROTOS+=$$PWD/../3rdparty/lightseq/lightseq/inference/proto/gpt.proto
+    PROTOPATH =
+    include(protobuf.pri)
 
     extensionProcessor(CL)
     QT -= core gui qml quickcontrols2 quickcontrols qtquickcompiler
@@ -176,6 +170,18 @@ unix{
     enableExtension(MAGIC_ENUM)
     extensionProcessor(RANGE_V3)
     enableExtension(TORCH)
+
+    !CUDA_OFF{
+        if(exists("/usr/local/cuda/version.txt")|exists("/usr/local/cuda/version.json")){
+            message("FOUND CUDA")
+            DEFINES+=CUDA_AVAILABLE
+            CONFIG+=CUDA_AVAILABLE
+            extensionProcessor(THRUST)
+            extensionProcessor(LIGHTSEQ)
+            extensionProcessor(FASTER_TRANSFORMER)
+            include(cuda.pri)
+        }
+    }
 
     #    CONFIG(debug, debug|release) {
     #    CONFIG += sanitizer
