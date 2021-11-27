@@ -1,6 +1,6 @@
 SYSTEM_NAME = unix         # Depending on your system either 'Win32', 'x64', or 'Win64'
 SYSTEM_TYPE = 64
-
+############################################################################################333
 DEFINES +=
 CONFIG +=
 CUDA_DEFINES +=
@@ -14,7 +14,7 @@ for(_defines, CUDA_DEFINES):{
 
 formatted_defines += -std=c++14 -expt-relaxed-constexpr
 CUDA_DEFINES = $$formatted_defines
-
+############################################################################################333
 !isEmpty(CUDA_WANTED_ARCHS){
     CUDA_COMPUTE_ARCH += $$CUDA_WANTED_ARCHS
 }
@@ -58,23 +58,32 @@ equals(CUDA_MINIMUM_ARCH, 72) {
     DEFINES +=CUDA_DLA_AVAILABLE
     CONFIG +=CUDA_DLA_AVAILABLE
 }
-
+############################################################################################333
+INCLUDEPATH += $${DEPS_ROOT}/include
+INCLUDEPATH += $${DEPS_ROOT}/include/akil
 CUDA_SDK= /usr/local/cuda/
 !USE_TORCH_CUDA_RT{
     QMAKE_LIBDIR += $$CUDA_SDK/lib64/
     LIBS+= -lcufft -lcublas -lcurand -lcusolver
 }
-CUDA_OBJECTS_DIR = ${OBJECTS_DIR}
-CUDA_INC = $$join(INCLUDEPATH,'" -I"','-I"','"')
-CUDA_LIBS += $$join(LIBS,'.so ', '', '.so')
-
+LIGHTSEQ_AVAILABLE{
+    CENTOS{
+        #
+    }else{
+        INCLUDEPATH+= /usr/include/hdf5/serial/
+    }
+}
 # No spaces in path names
 LIGHTSEQ_AVAILABLE{
     CUDA_SOURCES+= $$PWD/../3rdparty/lightseq/lightseq/inference/model/gpt_encoder.cc.cu \
                    $$PWD/../3rdparty/lightseq/lightseq/inference/tools/util.cc.cu \
                    $$PWD/../3rdparty/lightseq/lightseq/inference/kernels/gptKernels.cc.cu
 }
-
+INCLUDEPATH+=$${OUT_PWD}/
+CUDA_OBJECTS_DIR = ${OBJECTS_DIR}
+CUDA_INC = $$join(INCLUDEPATH,'" -I"','-I"','"')
+CUDA_LIBS += $$join(LIBS,'.so ', '', '.so')
+############################################################################################333
 NVCC_OPTIONS += --use_fast_math --ptxas-options=-v
 CONFIG(debug, debug|release) {
         cuda_d.input = CUDA_SOURCES

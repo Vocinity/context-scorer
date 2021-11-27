@@ -25,7 +25,12 @@ unix {
     }
 
     !ON_CONAN{
-        CENTOS{
+        LIGHTSEQ_AVAILABLE{
+            CENTOS{
+            }else{
+                LIBS+= -L/usr/lib/x86_64-linux-gnu/hdf5/serial/ -lhdf5
+            }
+            LIBS+= -L$${DEPS_ROOT}/lib/ -l:libprotobuf.so.30.0.1 -l:libprotobuf-lite.so.30.0.1 -l:libprotoc.so.30.0.1
         }
     }else{
         CONFIG += conan_basic_setup

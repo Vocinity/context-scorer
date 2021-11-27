@@ -32,7 +32,7 @@ unix {
     }
 
     isEmpty(FAKE_INSTALL): FAKE_INSTALL=$$(FAKE_INSTALL)
-    !isEmpty(FAKE_INSTALL){
+    !isEmpty(FAKE_INSTALL):!equals(FAKE_INSTALL, 1){
         FORCELINK_CPP_FILE = force_link.cpp
         forcelink.target = $$FORCELINK_CPP_FILE
         forcelink.depends = FORCE
@@ -57,7 +57,6 @@ unix {
             cp -r $$postCommandBody $${FAKE_INSTALL}/lib/akil;
             QMAKE_POST_LINK+=$$buildRootInstall.commands
         }
-
         isEqual(TEMPLATE,app){
             message(cp -r $${OUT_PWD}/bin/$${TARGET} $$FAKE_INSTALL)
             buildRootInstall.commands=mkdir $${FAKE_INSTALL} || true; \
@@ -74,7 +73,6 @@ unix {
     header.path=$${INCLUDE_DIR}/
     header.files=$${SRC_DIR}/Context_Scorer.hpp $${SRC_DIR}/Homophonic_Alternatives.hpp
     INSTALLS +=  header
-
 
     REAL_DEPL_ROOT=$$DEPL_ROOT
     !isEmpty(BUILD_ROOT){

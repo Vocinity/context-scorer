@@ -26,6 +26,7 @@ main(int argc, char* argv[])
             argv[1],
             Vocinity::Context_Scorer::Model_Family::OpenAI,
             Vocinity::Context_Scorer::Tokenizer_Configuration{argv[2], argv[3]},
+            Vocinity::Context_Scorer::Precision::FP32,
             Vocinity::Context_Scorer::Inference_Backend::CUDA};
 
         std::cout << "Instance " << instance_index << " " << argv[1]

@@ -155,9 +155,10 @@ unix{
             message("FOUND CUDA")
             DEFINES+=CUDA_AVAILABLE
             CONFIG+=CUDA_AVAILABLE
-            extensionProcessor(THRUST)
-            include(cuda.pri)
-         }
+            enableExtension(THRUST)
+            enableExtension(LIGHTSEQ)
+            enableExtension(FASTER_TRANSFORMER)
+        }
     }
 
     Release:include(conan.pri)
