@@ -95,7 +95,7 @@ main(int argc, char* argv[])
     instructions.method =
         Vocinity::Homophonic_Alternative_Composer::Matching_Method::Phoneme_Levenshtein;
 
-    if(true)
+    if(false)
     {
         if(instructions.method
            == Vocinity::Homophonic_Alternative_Composer::Matching_Method::
