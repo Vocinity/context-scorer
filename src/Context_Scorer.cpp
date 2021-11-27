@@ -228,6 +228,7 @@ Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_mod
     {
 
 #ifdef LIGHTSEQ_AVAILABLE
+#ifdef CUDA_FP16_AVAILABLE
         if(precision == Precision::FP16)
         {
             _inference_backend = std::make_unique<
@@ -235,6 +236,7 @@ Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_mod
                 scorer_model_path);
         }
         else
+#endif
         {
             _inference_backend = std::make_unique<
                 Scorer_LightSeq_Backend<lightseq::cuda::OperationType::FP32>>(

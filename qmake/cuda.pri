@@ -89,7 +89,7 @@ CONFIG(debug, debug|release) {
         cuda_d.input = CUDA_SOURCES
         cuda_d.output = $$CUDA_OBJECTS_DIR/${QMAKE_FILE_BASE}_cuda.o
         cuda_d.commands = $$CUDA_SDK/bin/nvcc -D_DEBUG $$CUDA_DEFINES --machine \
-        $$SYSTEM_TYPE $$CUDA_ARCH -Xcompiler '-fPIC' -dc $$NVCC_OPTIONS $$CUDA_INC\
+        $$SYSTEM_TYPE $$CUDA_ARCH -Xcompiler '-fPIC' -c $$NVCC_OPTIONS $$CUDA_INC\
         $$CUDA_LIBS -o ${QMAKE_FILE_OUT} ${QMAKE_FILE_NAME}\
                 2>&1 | sed -r \"s/\\(([0-9]+)\\)/:\\1/g\" 1>&2
         cuda_d.dependency_type = TYPE_C
@@ -99,7 +99,7 @@ else {
         cuda.input = CUDA_SOURCES
         cuda.output = $$CUDA_OBJECTS_DIR/${QMAKE_FILE_BASE}_cuda.o
         cuda.commands = $$CUDA_SDK/bin/nvcc $$CUDA_DEFINES  --machine $$SYSTEM_TYPE\
-        $$CUDA_ARCH -Xcompiler '-fPIC' -dc $$NVCC_OPTIONS $$CUDA_INC $$CUDA_LIBS -o \
+        $$CUDA_ARCH -Xcompiler '-fPIC' -c $$NVCC_OPTIONS $$CUDA_INC $$CUDA_LIBS -o \
         ${QMAKE_FILE_OUT} ${QMAKE_FILE_NAME} \
                 2>&1 | sed -r \"s/\\(([0-9]+)\\)/:\\1/g\" 1>&2
         cuda.dependency_type = TYPE_C
