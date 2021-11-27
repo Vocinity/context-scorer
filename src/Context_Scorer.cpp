@@ -80,9 +80,12 @@ class Scorer_Torch_Backend : public Vocinity::Context_Scorer::Scorer_Backend
 };
 
 #ifdef CUDA_AVAILABLE
-#ifdef LIGHTSEQ_AVAILABLE
-#	include "../3rdparty/lightseq/lightseq/inference/model/gpt_encoder.h"
-#	include "../3rdparty/lightseq/lightseq/inference/tools/util.h"
+#	ifdef LIGHTSEQ_AVAILABLE
+#		ifdef QT_DEBUG
+#			define DEBUG_RESULT
+#		endif
+#		include "../3rdparty/lightseq/lightseq/inference/model/gpt_encoder.h"
+#		include "../3rdparty/lightseq/lightseq/inference/tools/util.h"
 
 template <lightseq::cuda::OperationType optype>
 class Scorer_LightSeq_Backend : public Vocinity::Context_Scorer::Scorer_Backend
@@ -144,49 +147,44 @@ class Scorer_LightSeq_Backend : public Vocinity::Context_Scorer::Scorer_Backend
   public:
     at::Tensor score(const at::Tensor& input_ids, const at::Tensor& att_mask) override
     {
-        const auto& [host_input, batch_size, batch_seq_len] =
-            prepare_material(input_ids);
-
-#	ifdef QT_DEBUG
+        std::tuple<BetterCpp::span<int>, Batch_Size, Batch_Seq_Len> result;
+        auto& [input_ids_vec, batch_size, batch_seq_len] = result;
+        batch_size                                       = input_ids.size(0);
+        batch_seq_len                                    = input_ids.size(1);
+        input_ids_vec = akil::memory::tensor_1d_to_span_1d_no_copy<int>(input_ids);
+        std::cout << input_ids.sizes() << std::endl;
+#		ifdef QT_DEBUG
         auto start = std::chrono::high_resolution_clock::now();
-#	endif
+#		endif
         // copy inputs from cpu memory to gpu memory
         cudaMemcpyAsync(reinterpret_cast<int*>(thrust::raw_pointer_cast(d_input_.data())),
-                        host_input.data(),
+                        input_ids_vec.data(),
                         sizeof(int) * batch_size * batch_seq_len,
                         cudaMemcpyHostToDevice,
                         stream_);
         encoder_->run_one_infer(batch_size, batch_seq_len);
 
-#	ifdef QT_DEBUG
+#		ifdef QT_DEBUG
         lightseq::cuda::print_time_duration(start, "one infer time", stream_);
         lightseq::cuda::print_vec(d_ppl_.data(), "ppl", batch_size);
-#	endif
+#		endif
         return torch::Tensor{};
     }
 
-  private:
-    static std::tuple<std::vector<int>, Batch_Size, Batch_Seq_Len> prepare_material(
-        const at::Tensor& input_ids)
+    static constexpr ushort get_max_sequence_length()
     {
-        std::tuple<std::vector<int>, Batch_Size, Batch_Seq_Len> result;
-        auto& [input_ids_vec, batch_size, batch_seq_len] = result;
-
-                // calculate batches
-        std::cout<<input_ids<<std::endl;
-
-        input_ids_vec = std::vector<int>(batch_size * batch_seq_len, 0);
-        for(int i = 0; i < batch_size; i++)
-        {
-            for(int j = 0; j < batch_seq_len; j++)
-            {
-                int idx = i * batch_seq_len + j;
-                // fin >> input_ids_vec[idx];
-            }
-        }
-        return result;
+        return 512;
     }
 
+    static constexpr int64_t get_label_ignore_id()
+    {
+        return -100;
+    }
+
+    static constexpr int64_t get_stride()
+    {
+        return 256;
+    }
 
   private:
     cudaStream_t stream_;
@@ -198,7 +196,7 @@ class Scorer_LightSeq_Backend : public Vocinity::Context_Scorer::Scorer_Backend
     thrust::device_vector<float> d_ppl_;
     thrust::device_vector<int> d_buf_;
 };
-#endif
+#	endif
 #endif
 
 Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_model_path,
@@ -226,25 +224,24 @@ Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_mod
 #ifdef CUDA_AVAILABLE
     if(device == Inference_Backend::CUDA)
     {
-
-#ifdef LIGHTSEQ_AVAILABLE
-#ifdef CUDA_FP16_AVAILABLE
+#	ifdef LIGHTSEQ_AVAILABLE
+#		ifdef CUDA_FP16_AVAILABLE
         if(precision == Precision::FP16)
         {
-            _inference_backend = std::make_unique<
-                Scorer_LightSeq_Backend<lightseq::cuda::OperationType::FP16>>(
-                scorer_model_path);
+            _inference_backend =
+                std::make_unique<Scorer_LightSeq_Backend<lightseq::cuda::OperationType::FP16>>(
+                    scorer_model_path);
         }
         else
-#endif
+#		endif
         {
-            _inference_backend = std::make_unique<
-                Scorer_LightSeq_Backend<lightseq::cuda::OperationType::FP32>>(
-                scorer_model_path);
+            _inference_backend =
+                std::make_unique<Scorer_LightSeq_Backend<lightseq::cuda::OperationType::FP32>>(
+                    scorer_model_path);
         }
-#else
+#	else
         //
-#endif
+#	endif
     }
     else
 #endif
@@ -300,11 +297,44 @@ Vocinity::Context_Scorer::score(const std::string& sentence, const bool per_char
         target_ids.index_put_({Slice(None, -trg_len)},
                               _inference_backend->get_label_ignore_id());
 
-#ifndef CUDA_AVAILABLE
-        current_input_ids.to(_device);
-        current_att_mask.to(_device);
+        torch::Tensor logits;
+#ifdef CUDA_AVAILABLE
+        if(_device == torch::kCUDA)
+        {
+#	ifdef LIGHTSEQ_AVAILABLE
+            if(_family == Model_Family::Neo)
+            {
+                logits = _inference_backend->score(current_input_ids, current_att_mask);
+            }
+            else
+            {
+                logits = _inference_backend->score(current_input_ids.unsqueeze(0),
+                                                   current_att_mask.unsqueeze(0));
+            }
+#	else
+#		ifdef FASTER_TRANSFORMER_AVAILABLE
+            if(_family == Model_Family::Neo)
+            {
+                logits = _inference_backend->score(current_input_ids, current_att_mask);
+            }
+            else
+            {
+                logits = _inference_backend->score(current_input_ids.unsqueeze(0),
+                                                   current_att_mask.unsqueeze(0));
+            }
+#		else
+            current_input_ids.to(_device);
+            current_att_mask.to(_device);
+            logits = _inference_backend->score(current_input_ids, current_att_mask);
+#		endif
+#	endif
+        }
+        else
 #endif
-        const auto& logits = _inference_backend->score(current_input_ids, current_att_mask);
+        {
+            logits = _inference_backend->score(current_input_ids, current_att_mask);
+        }
+
         if(not logits.numel())
         {
             continue;
