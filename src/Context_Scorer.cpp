@@ -406,7 +406,6 @@ Vocinity::Context_Scorer::score(const std::string& sentence, const bool per_char
 #	endif
 #endif
         {
-
             if(_family == Model_Family::OpenAI)
             {
                 const auto& out_mask =
