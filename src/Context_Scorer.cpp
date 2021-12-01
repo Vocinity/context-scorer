@@ -8,23 +8,20 @@ class Vocinity::Context_Scorer::Scorer_Backend
     virtual ~Scorer_Backend() = default;
 
   public:
-    virtual at::Tensor score(const at::Tensor& input_ids, const at::Tensor& att_mask) = 0;
+    virtual std::pair<torch::Tensor, torch::Tensor> score(
+        const at::Tensor& input_ids,
+        const at::Tensor& att_mask,
+        const torch::Tensor& labels = torch::Tensor()) = 0;
 
-    static constexpr ushort get_max_sequence_length()
-    {
-        return 1024;
-    }
+    virtual constexpr ushort get_max_sequence_length() = 0;
 
-    static constexpr int64_t get_label_ignore_id()
-    {
-        return -100;
-    }
+    virtual constexpr int64_t get_label_ignore_id() = 0;
 
-    static constexpr int64_t get_stride()
-    {
-        return 512;
-    }
+    virtual constexpr int64_t get_stride() = 0;
 };
+
+
+#include <torch/csrc/api/include/torch/nn/functional/loss.h>
 
 class Scorer_Torch_Backend : public Vocinity::Context_Scorer::Scorer_Backend
 {
@@ -60,17 +57,43 @@ class Scorer_Torch_Backend : public Vocinity::Context_Scorer::Scorer_Backend
     ~Scorer_Torch_Backend() override = default;
 
   public:
-    at::Tensor score(const at::Tensor& input_ids, const at::Tensor& att_mask) override
+    std::pair<torch::Tensor, torch::Tensor> score(const at::Tensor& input_ids,
+                                                  const at::Tensor& att_mask,
+                                                  const torch::Tensor& labels) override
     {
         const std::lock_guard<std::mutex> lock(instanceMutex);
-        return _scorer_model
-            .forward(std::vector<torch::jit::IValue>{torch::jit::IValue(input_ids),
-                                                     torch::jit::IValue(att_mask)})
-            .toTuple()
-            ->elements()
-            .at(0)
-            .toTensor()
-            .detach();
+
+        const auto logits =
+            _scorer_model
+                .forward(std::vector<torch::jit::IValue>{torch::jit::IValue(input_ids),
+                                                         torch::jit::IValue(att_mask)})
+                .toTuple()
+                ->elements()
+                .at(0)
+                .toTensor()
+                .detach();
+
+        const auto& shift_logits =
+            logits.index({"...", Slice(None, -1), Slice()}).contiguous();
+        const auto& shift_labels = labels.index({"...", Slice(1, None)}).contiguous();
+        const auto loss          = torch::nn::functional::cross_entropy(
+            shift_logits.view({-1, shift_logits.size(-1)}), shift_labels.view({-1}));
+        return {logits, loss};
+    }
+
+    virtual constexpr ushort get_max_sequence_length() override
+    {
+        return 1024;
+    }
+
+    virtual constexpr int64_t get_label_ignore_id() override
+    {
+        return -100;
+    }
+
+    virtual constexpr int64_t get_stride() override
+    {
+        return 512;
     }
 
   private:
@@ -103,98 +126,120 @@ class Scorer_LightSeq_Backend : public Vocinity::Context_Scorer::Scorer_Backend
             throw std::runtime_error("scorer_model_path can not be empty");
         }
         cudaSetDevice(0);
-        cudaStreamCreate(&stream_);
-        cudaStreamCreate(&cache_stream_);
-        cublasCreate(&hd_);
-        cublasSetStream(hd_, stream_);
+        cudaStreamCreate(&_stream);
+        cudaStreamCreate(&_cache_stream);
+        cublasCreate(&_cublas_handler);
+        cublasSetStream(_cublas_handler, _stream);
 
-        lightseq::cuda::GptWeight<optype> tw_;
         // saved in custom proto file
-        std::string res = tw_.initializing(scorer_model_path);
+        std::string res = _weights.initializing(scorer_model_path);
         if(!res.empty())
         {
             throw std::runtime_error(res);
         }
 
-        d_input_  = std::vector<int>(max_batch_size * tw_._max_step, 0);
-        d_sample_ = std::vector<int>(max_batch_size * tw_._max_step, 0);
-        d_ppl_    = std::vector<float>(max_batch_size, 0.f);
+        _input             = std::vector<int>(max_batch_size * _weights._max_step, 0);
+        _generation_buffer = std::vector<int>(max_batch_size * _weights._max_step, 0);
+        _loss              = std::vector<float>(max_batch_size, 0.f);
 
-        encoder_ = std::make_shared<lightseq::cuda::GptEncoder<optype>>(
+        _encoder = std::make_shared<lightseq::cuda::GptEncoder<optype>>(
             max_batch_size,
-            reinterpret_cast<int*>(thrust::raw_pointer_cast(d_input_.data())),
-            reinterpret_cast<float*>(thrust::raw_pointer_cast(d_ppl_.data())),
-            reinterpret_cast<int*>(thrust::raw_pointer_cast(d_sample_.data())),
-            tw_,
-            stream_,
-            cache_stream_,
-            hd_);
-        res = encoder_->check();
+            reinterpret_cast<int*>(thrust::raw_pointer_cast(_input.data())),
+            reinterpret_cast<float*>(thrust::raw_pointer_cast(_loss.data())),
+            reinterpret_cast<int*>(thrust::raw_pointer_cast(_generation_buffer.data())),
+            _weights,
+            _stream,
+            _cache_stream,
+            _cublas_handler);
+        res = _encoder->check();
         if(!res.empty())
         {
             throw std::runtime_error(res);
         }
 
-        long buf_bytesize = encoder_->compute_buffer_bytesize();
-        d_buf_            = std::vector<int>(buf_bytesize / sizeof(int) + 1, 0);
-        encoder_->init_buffer(
-            reinterpret_cast<void*>(thrust::raw_pointer_cast(d_buf_.data())));
-        cudaStreamSynchronize(stream_);
+        long buf_bytesize = _encoder->compute_buffer_bytesize();
+        _internal_buffer  = std::vector<int>(buf_bytesize / sizeof(int) + 1, 0);
+        _encoder->init_buffer(
+            reinterpret_cast<void*>(thrust::raw_pointer_cast(_internal_buffer.data())));
+        cudaStreamSynchronize(_stream);
     }
 
     ~Scorer_LightSeq_Backend() override = default;
 
   public:
-    at::Tensor score(const at::Tensor& input_ids, const at::Tensor& att_mask) override
+    std::pair<torch::Tensor, torch::Tensor> score(const at::Tensor& input_ids,
+                                                  const at::Tensor& att_mask,
+                                                  const torch::Tensor& labels) override
     {
-        std::tuple<BetterCpp::span<int>, Batch_Size, Batch_Seq_Len> result;
-        auto& [input_ids_vec, batch_size, batch_seq_len] = result;
-        batch_size                                       = input_ids.size(0);
-        batch_seq_len                                    = input_ids.size(1);
-        input_ids_vec = akil::memory::tensor_1d_to_span_1d_no_copy<int>(input_ids);
-        std::cout << input_ids.sizes() << std::endl;
+        const Batch_Size batch_size       = input_ids.size(0);
+        const Batch_Seq_Len batch_seq_len = input_ids.size(1);
+
 #		ifdef QT_DEBUG
         auto start = std::chrono::high_resolution_clock::now();
 #		endif
-        // copy inputs from cpu memory to gpu memory
-        cudaMemcpyAsync(reinterpret_cast<int*>(thrust::raw_pointer_cast(d_input_.data())),
-                        input_ids_vec.data(),
+
+        cudaMemcpyAsync(reinterpret_cast<int*>(thrust::raw_pointer_cast(_input.data())),
+                        input_ids.data_ptr(),
                         sizeof(int) * batch_size * batch_seq_len,
-                        cudaMemcpyHostToDevice,
-                        stream_);
-        encoder_->run_one_infer(batch_size, batch_seq_len);
+                        cudaMemcpyDeviceToDevice,
+                        _stream);
+
+        const auto logits_ptr = _encoder->run_one_infer(batch_size, batch_seq_len);
+
+        c10::ScalarType precision;
+#		ifdef CUDA_FP16_AVAILABLE
+        if(optype == lightseq::cuda::OperationType::FP16)
+        {
+            precision = torch::kFloat16;
+        }
+        else if(optype == lightseq::cuda::OperationType::FP32)
+#		endif
+        {
+            precision = torch::kFloat32;
+        }
+
+        const torch::Tensor logits =
+            torch::from_blob(logits_ptr,
+                             {batch_size, batch_seq_len},
+                             torch::TensorOptions().device(torch::kCUDA).dtype(precision));
+
+        const torch::Tensor losses = torch::from_blob(
+            reinterpret_cast<int*>(thrust::raw_pointer_cast(_loss.data())),
+            {batch_size},
+            torch::TensorOptions().device(torch::kCUDA).dtype(torch::kFloat32));
 
 #		ifdef QT_DEBUG
-        lightseq::cuda::print_time_duration(start, "one infer time", stream_);
-        lightseq::cuda::print_vec(d_ppl_.data(), "ppl", batch_size);
+        lightseq::cuda::print_time_duration(start, "one infer time", _stream);
+        lightseq::cuda::print_vec(_loss.data(), "ppl", batch_size);
 #		endif
-        return torch::Tensor{};
+        return {logits, losses};
     }
 
-    static constexpr ushort get_max_sequence_length()
+    virtual constexpr ushort get_max_sequence_length() override
     {
         return 512;
     }
 
-    static constexpr int64_t get_label_ignore_id()
+    virtual constexpr int64_t get_label_ignore_id() override
     {
         return -100;
     }
 
-    static constexpr int64_t get_stride()
+    virtual constexpr int64_t get_stride() override
     {
         return 256;
     }
 
   private:
-    cudaStream_t stream_;
-    cudaStream_t cache_stream_;
-    cublasHandle_t hd_;
-    std::shared_ptr<lightseq::cuda::GptEncoder<optype>> encoder_;
-    thrust::device_vector<int> d_input_;
-    thrust::device_vector<int> d_sample_;
-    thrust::device_vector<float> d_ppl_;
-    thrust::device_vector<int> d_buf_;
+    cudaStream_t _stream;
+    cudaStream_t _cache_stream;
+    cublasHandle_t _cublas_handler;
+    lightseq::cuda::GptWeight<optype> _weights;
+    std::shared_ptr<lightseq::cuda::GptEncoder<optype>> _encoder;
+    thrust::device_vector<int> _input;
+    thrust::device_vector<int> _generation_buffer;
+    thrust::device_vector<float> _loss;
+    thrust::device_vector<int> _internal_buffer;
 };
 #	endif
 #endif
@@ -240,7 +285,10 @@ Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_mod
                     scorer_model_path);
         }
 #	else
-        //
+#		ifdef FASTER_TRANSFORMER_AVAILABLE
+#		else
+        _inference_backend = std::make_unique<Scorer_Torch_Backend>(scorer_model_path, device);
+#		endif
 #	endif
     }
     else
@@ -268,14 +316,13 @@ Vocinity::Context_Scorer::optimize_parallelization_policy_for_use_of_single_inst
     at::set_num_threads(physical_cores);
 }
 
-#include <torch/csrc/api/include/torch/nn/functional/loss.h>
-
 Vocinity::Context_Scorer::Score
 Vocinity::Context_Scorer::score(const std::string& sentence, const bool per_char_normalized)
 {
     auto [input_ids, input_mask, actual_token_size] = encode(sentence);
 
     const unsigned long sequence_length = input_ids.size(-1);
+
     if(_family == Model_Family::Neo)
     {
         input_ids  = input_ids.unsqueeze(0);
@@ -297,42 +344,43 @@ Vocinity::Context_Scorer::score(const std::string& sentence, const bool per_char
         target_ids.index_put_({Slice(None, -trg_len)},
                               _inference_backend->get_label_ignore_id());
 
-        torch::Tensor logits;
+        torch::Tensor logits, loss;
 #ifdef CUDA_AVAILABLE
         if(_device == torch::kCUDA)
         {
 #	ifdef LIGHTSEQ_AVAILABLE
             if(_family == Model_Family::Neo)
             {
-                logits = _inference_backend->score(current_input_ids, current_att_mask);
+                throw std::runtime_error("GPT Neo is not implemented in LightSeq!");
             }
             else
             {
-                logits = _inference_backend->score(current_input_ids.unsqueeze(0),
-                                                   current_att_mask.unsqueeze(0));
+                const auto payload = _inference_backend->score(current_input_ids.unsqueeze(0),
+                                                               current_att_mask.unsqueeze(0));
+                logits             = payload.first.flatten();
+                loss               = payload.second.flatten();
             }
 #	else
 #		ifdef FASTER_TRANSFORMER_AVAILABLE
             if(_family == Model_Family::Neo)
-            {
-                logits = _inference_backend->score(current_input_ids, current_att_mask);
-            }
+            {}
             else
-            {
-                logits = _inference_backend->score(current_input_ids.unsqueeze(0),
-                                                   current_att_mask.unsqueeze(0));
-            }
+            {}
 #		else
-            current_input_ids.to(_device);
-            current_att_mask.to(_device);
-            logits = _inference_backend->score(current_input_ids, current_att_mask);
+            const auto payload =
+                _inference_backend->score(current_input_ids, current_att_mask, target_ids);
+            logits = payload.first;
+            loss   = payload.second;
 #		endif
 #	endif
         }
         else
 #endif
         {
-            logits = _inference_backend->score(current_input_ids, current_att_mask);
+            const auto payload =
+                _inference_backend->score(current_input_ids, current_att_mask, target_ids);
+            logits = payload.first;
+            loss   = payload.second;
         }
 
         if(not logits.numel())
@@ -340,30 +388,44 @@ Vocinity::Context_Scorer::score(const std::string& sentence, const bool per_char
             continue;
         }
 
-        const auto& loss      = process_labels(target_ids, logits);
-        const auto& log_probs = torch::nn::functional::log_softmax(
+        const auto log_probs = torch::nn::functional::log_softmax(
             logits, torch::nn::functional::LogSoftmaxFuncOptions(-1));
 
         torch::Tensor target_log_probs;
-        if(_family == Model_Family::OpenAI)
+#ifdef CUDA_AVAILABLE
+#	ifdef LIGHTSEQ_AVAILABLE
+        if(_device == torch::kCUDA)
         {
-            const auto& out_mask = input_ids.index({Slice(
-                std::min(std::max((unsigned long) 1, begin_loc), current_actual_token_end_loc),
-                current_actual_token_end_loc)});
-            target_log_probs =
-                log_probs.gather(-1, out_mask.unsqueeze(-1)).squeeze(-1).to(torch::kCPU);
+            const auto& out_mask =
+                input_ids.index({Slice(std::min(std::max((unsigned long) 1, begin_loc),
+                                                current_actual_token_end_loc),
+                                       current_actual_token_end_loc)});
+            target_log_probs = log_probs.gather(-1, out_mask);
         }
         else
+#	endif
+#endif
         {
-            const auto out_mask =
-                input_ids[0]
-                    .index({Slice(std::min(std::max((unsigned long) 1, begin_loc),
-                                           current_actual_token_end_loc),
-                                  current_actual_token_end_loc)})
-                    .unsqueeze(0)
-                    .unsqueeze(-1);
-            target_log_probs =
-                log_probs.gather(-1, out_mask).squeeze(-1).squeeze(0).to(torch::kCPU);
+
+            if(_family == Model_Family::OpenAI)
+            {
+                const auto& out_mask =
+                    input_ids.index({Slice(std::min(std::max((unsigned long) 1, begin_loc),
+                                                    current_actual_token_end_loc),
+                                           current_actual_token_end_loc)});
+                target_log_probs = log_probs.gather(-1, out_mask.unsqueeze(-1)).squeeze(-1);
+            }
+            else
+            {
+                const auto out_mask =
+                    input_ids[0]
+                        .index({Slice(std::min(std::max((unsigned long) 1, begin_loc),
+                                               current_actual_token_end_loc),
+                                      current_actual_token_end_loc)})
+                        .unsqueeze(0)
+                        .unsqueeze(-1);
+                target_log_probs = log_probs.gather(-1, out_mask).squeeze(-1).squeeze(0);
+            }
         }
 
         Score score;
@@ -432,46 +494,24 @@ Vocinity::Context_Scorer::score(const std::string& sentence, const bool per_char
     return score;
 }
 
-torch::Tensor
-Vocinity::Context_Scorer::process_labels(const torch::Tensor& labels,
-                                         const torch::Tensor& logits)
-{
-    torch::Tensor loss;
-    if(labels.numel())
-    {
-        const auto& shift_logits =
-            logits.index({"...", Slice(None, -1), Slice()}).contiguous();
-        const auto& shift_labels = labels.index({"...", Slice(1, None)}).contiguous();
-        loss                     = torch::nn::functional::cross_entropy(
-            shift_logits.view({-1, shift_logits.size(-1)}), shift_labels.view({-1}));
-    }
-    return loss;
-}
-
 Vocinity::Context_Scorer::Encoded_Sequence
 Vocinity::Context_Scorer::encode(const std::string& sentence, const bool parallel)
 {
     const auto tokens = _tokenizer->tokenize(sentence);
     std::vector<int64_t> ids;
     ids.resize(tokens.size() + 2);
+#ifdef CPP17_AVAILABLE
     if(parallel)
     {
-#ifdef CPP17_AVAILABLE
         std::transform(std::execution::unseq,
                        tokens.begin(),
                        tokens.end(),
                        ids.begin() + 1,
                        [this](const auto& token) -> int64_t
                        { return _tokenizer->convert_token_to_id(token); }); // moves
-#else
-        __gnu_parallel::transform(tokens.begin(),
-                                  tokens.end(),
-                                  ids.begin() + 1,
-                                  [this](const auto& token) -> int64_t
-                                  { return _tokenizer->convert_token_to_id(token); }); // moves
-#endif
     }
     else
+#endif
     {
         std::transform(tokens.begin(),
                        tokens.end(),
@@ -480,9 +520,20 @@ Vocinity::Context_Scorer::encode(const std::string& sentence, const bool paralle
                        { return _tokenizer->convert_token_to_id(token); }); // moves
     }
     const Actual_Token_Size actual_token_size = ids.size() - 2;
-
-    ids[0]                    = _tokenizer->get_bos_token_id();
-    ids[ids.size() - 1]       = _tokenizer->get_eos_token_id();
+#ifdef CUDA_AVAILABLE
+#	ifdef LIGHTSEQ_AVAILABLE
+    if(_device == torch::kCUDA)
+    {
+        ids[0]              = 0;
+        ids[ids.size() - 1] = 0;
+    }
+    else
+#	endif
+#endif
+    {
+        ids[0]              = _tokenizer->get_bos_token_id();
+        ids[ids.size() - 1] = _tokenizer->get_eos_token_id();
+    }
     const auto& tokens_padded = akil::memory::vector_1d_to_tensor_1d_no_copy<int64_t>(ids);
     const uint64_t padded_token_size = ids.size();
 
@@ -492,14 +543,28 @@ Vocinity::Context_Scorer::encode(const std::string& sentence, const bool paralle
                   - (padded_token_size % _inference_backend->get_max_sequence_length())
                   + padded_token_size
             : padded_token_size;
-    auto full_sequence = torch::full(full_sequence_size,
-                                     _tokenizer->get_pad_token_id(),
-                                     torch::TensorOptions().dtype(torch::kInt64));
+    torch::Tensor full_sequence;
+#ifdef CUDA_AVAILABLE
+#	ifdef LIGHTSEQ_AVAILABLE
+    if(_device == torch::kCUDA)
+    {
+        full_sequence =
+            torch::full(full_sequence_size, 0, torch::TensorOptions().dtype(torch::kInt64));
+    }
+    else
+#	endif
+#endif
+    {
+        full_sequence = torch::full(full_sequence_size,
+                                    _tokenizer->get_pad_token_id(),
+                                    torch::TensorOptions().dtype(torch::kInt64));
+    }
+
     full_sequence.index_put_({Slice(None, padded_token_size)}, tokens_padded);
 
 
     auto input_mask = torch::zeros(full_sequence_size);
     input_mask.index_put_({Slice(None, padded_token_size)}, 1);
 
-    return {full_sequence, input_mask, actual_token_size};
+    return {full_sequence.to(_device), input_mask.to(_device), actual_token_size};
 }

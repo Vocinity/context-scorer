@@ -87,7 +87,6 @@ namespace Vocinity
         Context_Scorer& operator=(const Context_Scorer&) = delete;
 
       private:
-        at::Tensor process_labels(const torch::Tensor& labels, const torch::Tensor& logits);
         Encoded_Sequence encode(const std::string& sentence, const bool parallel = false);
 
       private:
