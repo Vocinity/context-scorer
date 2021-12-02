@@ -1,5 +1,5 @@
-#include "../src/Context_Scorer.hpp"
-#include "../src/Homophonic_Alternatives.hpp"
+#include "../src/Context-Scorer.hpp"
+#include "../src/Homophonic-Alternatives.hpp"
 
 /**
  * @brief main

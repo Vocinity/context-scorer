@@ -1,4 +1,4 @@
-#include "Homophonic_Alternatives.hpp"
+#include "Homophonic-Alternatives.hpp"
 
 class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer_Impl
 {

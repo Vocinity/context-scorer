@@ -156,7 +156,7 @@ unix{
             DEFINES+=CUDA_AVAILABLE
             CONFIG+=CUDA_AVAILABLE
             enableExtension(THRUST)
-            enableExtension(LIGHTSEQ)
+            #enableExtension(LIGHTSEQ)
             enableExtension(FASTER_TRANSFORMER)
         }
     }

@@ -1,5 +1,5 @@
-#ifndef HOMOPHONIC_ALTERNATIVES_HPP
-#define HOMOPHONIC_ALTERNATIVES_HPP
+#ifndef HOMOPHONIC-ALTERNATIVES_H
+#define HOMOPHONIC-ALTERNATIVES_H
 
 #include <akil/aMisc.hpp>
 
@@ -141,4 +141,4 @@ namespace Vocinity
     };
 } // namespace Vocinity
 
-#endif // HOMOPHONIC_ALTERNATIVES_HPP
+#endif // HOMOPHONIC-ALTERNATIVES_H

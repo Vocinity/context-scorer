@@ -61,10 +61,11 @@ equals(CUDA_MINIMUM_ARCH, 72) {
 ############################################################################################333
 INCLUDEPATH += $${DEPS_ROOT}/include
 INCLUDEPATH += $${DEPS_ROOT}/include/akil
+THIRD_PARTY_SRC=$$PWD/../3rdparty/
 CUDA_SDK= /usr/local/cuda/
 !USE_TORCH_CUDA_RT{
     QMAKE_LIBDIR += $$CUDA_SDK/lib64/
-    LIBS+= -lcufft -lcublas -lcurand -lcusolver
+    LIBS+= -lcufft -lcublas -lcublasLt -lcurand -lcusolver
 }
 LIGHTSEQ_AVAILABLE{
     CENTOS{
@@ -78,6 +79,27 @@ LIGHTSEQ_AVAILABLE{
     CUDA_SOURCES+= $$PWD/../3rdparty/lightseq/lightseq/inference/model/gpt_encoder.cc.cu \
                    $$PWD/../3rdparty/lightseq/lightseq/inference/tools/util.cc.cu \
                    $$PWD/../3rdparty/lightseq/lightseq/inference/kernels/gptKernels.cc.cu
+}else{
+    FASTER_TRANSFORMER_AVAILABLE{
+        CUDA_SOURCES+= $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/kernels/layernorm_kernels.cu \
+                       #$${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/kernels/layernorm_int8_kernels.cu \
+                       $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/kernels/activation_kernels.cu \
+                       #$${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/kernels/activation_int8_kernels.cu \
+                       $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/kernels/add_residual_kernels.cu \
+                       $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/utils/memory_utils.cu \
+                       $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/kernels/unfused_attention_kernels.cu \
+                       #$${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/kernels/unfused_attention_int8_kernels.cu \
+                       $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/kernels/matrix_vector_multiplication.cu \
+                       $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/kernels/bert_preprocess_kernels.cu \
+                       $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/kernels/beam_search_topk_kernels.cu \
+                       $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/kernels/decoding_kernels.cu \
+                       $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/kernels/gpt_kernels.cu \
+                       $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/layers/beam_search_layers/BeamSearchLayer.cu \
+                       $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/layers/beam_search_layers/OnlineBeamSearchLayer.cu \
+                       $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/layers/sampling_layers/TopKSamplingLayer.cu \
+                       $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/layers/sampling_layers/TopKTopPSamplingLayer.cu \
+                       $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/layers/sampling_layers/TopPSamplingLayer.cu
+    }
 }
 INCLUDEPATH+=$${OUT_PWD}/
 CUDA_OBJECTS_DIR = ${OBJECTS_DIR}

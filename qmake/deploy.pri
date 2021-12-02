@@ -71,7 +71,7 @@ unix {
     INSTALLS +=  target
 
     header.path=$${INCLUDE_DIR}/
-    header.files=$${SRC_DIR}/Context_Scorer.hpp $${SRC_DIR}/Homophonic_Alternatives.hpp
+    header.files=$${SRC_DIR}/Context-Scorer.hpp $${SRC_DIR}/Homophonic-Alternatives.hpp
     INSTALLS +=  header
 
     REAL_DEPL_ROOT=$$DEPL_ROOT
@@ -80,12 +80,12 @@ unix {
     }
     escapedDepsRoot=$$re_escape($$quote($$DEPS_ROOT))
     escapedDeplRoot=$$re_escape($$quote($$REAL_DEPL_ROOT))
-    system('echo "$${LITERAL_HASH} fresh copy" > $${PWD}/depend_context_scorer.pri')
+    system('echo "$${LITERAL_HASH} fresh copy" > $${PWD}/depend-context-scorer.pri')
     pri.path=$${DEPL_ROOT}/share/akil/qmake
     pri.extra=\
-    cp -r $${PWD}/depend_context_scorer_template.pri $${PWD}/depend_context_scorer.pri;\
-    sed -i "s%DEPS_DIR_HERE%$$escapedDepsRoot%g" $${PWD}/depend_context_scorer.pri; \
-    sed -i "s%DEPL_DIR_HERE%$$escapedDeplRoot%g" $${PWD}/depend_context_scorer.pri;
-    pri.files=$${PWD}/depend_context_scorer.pri
+    cp -r $${PWD}/depend_context_scorer_template.pri $${PWD}/depend-context-scorer.pri;\
+    sed -i "s%DEPS_DIR_HERE%$$escapedDepsRoot%g" $${PWD}/depend-context_scorer.pri; \
+    sed -i "s%DEPL_DIR_HERE%$$escapedDeplRoot%g" $${PWD}/depend-context-scorer.pri;
+    pri.files=$${PWD}/depend-context-scorer.pri
     INSTALLS +=  pri
 }

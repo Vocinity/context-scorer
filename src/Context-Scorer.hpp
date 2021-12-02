@@ -1,5 +1,5 @@
-#ifndef CONTEXT_SCORER_HPP
-#define CONTEXT_SCORER_HPP
+#ifndef CONTEXT-SCORER_H
+#define CONTEXT-SCORER_H
 
 #include <akil/aMisc.hpp>
 
@@ -99,4 +99,4 @@ namespace Vocinity
     };
 } // namespace Vocinity
 
-#endif // CONTEXT_SCORER_HPP
+#endif // CONTEXT-SCORER_H

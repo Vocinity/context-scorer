@@ -3,7 +3,7 @@ include(dependency.pri)
 include(deploy.pri)
 
 DISTFILES += \
-    $$PWD/depend_context_scorer_template.pri \
+    $$PWD/depend-context-scorer-template.pri \
 #    ../.gitlab-ci.yml  \
     ../doc/Doxyfile
 
