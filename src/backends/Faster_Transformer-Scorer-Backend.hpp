@@ -16,10 +16,10 @@
 
 struct Faster_Transformer_Configuration
 {
-    const size_t max_batch_size =
+    size_t max_batch_size =
         8; //reader.GetInteger("ft_instance_hyperparameter", "max_batch_size");
-    const size_t max_seq_len =
-        128; /*reader.GetInteger("ft_instance_hyperparameter", "max_seq_len");*/
+    //const size_t max_seq_len =
+    //    128; /*reader.GetInteger("ft_instance_hyperparameter", "max_seq_len");*/
     const size_t beam_width =
         1;                   //reader.GetInteger("ft_instance_hyperparameter", "beam_width");
     const int top_k   = 0;   //reader.GetInteger("ft_instance_hyperparameter", "top_k");
@@ -28,11 +28,9 @@ struct Faster_Transformer_Configuration
         1.0; //reader.GetFloat("ft_instance_hyperparameter", "temperature");
     const float repetition_penalty =
         2.0; //reader.GetFloat("ft_instance_hyperparameter", "repetition_penalty");
-    const std::string model_dir =
-        "models/openai-gpt-models/c-model/124m/1-gpu/"; //std::string(reader.Get("ft_instance_hyperparameter", "model_dir"));
     const bool sparse =
         0; //static_cast<bool>(reader.GetInteger("ft_instance_hyperparameter", "sparse"));
-    const size_t request_batch_size = 8; //reader.GetInteger("request", "request_batch_size");
+    size_t request_batch_size = 8; //reader.GetInteger("request", "request_batch_size");
     // The length of tokens we hope this model to generate
     const int request_output_len = 32; //reader.GetInteger("request", "request_output_len");
 };
@@ -72,6 +70,7 @@ struct Faster_Transformer_Model_Configuration
             vocab_size     = 51200;
             decoder_layers = 32;
         }
+
         hidden_units = head_num * size_per_head;
         inter_size   = 4 * hidden_units;
     }
@@ -81,11 +80,16 @@ struct Faster_Transformer_Model_Configuration
     size_t decoder_layers; // = reader.GetInteger(model_name, "decoder_layers");
     size_t hidden_units;
     size_t inter_size;
+    static constexpr int inline beginning_of_text_token_id = 50256;
+    static constexpr inline int end_of_text_token_id       = 50256;
 };
 
 template <typename precision = float>
 class Scorer_FasterTransformer_Backend : public Vocinity::Context_Scorer::Scorer_Backend
 {
+    using Batch_Size    = int;
+    using Batch_Seq_Len = int;
+
   public:
     Scorer_FasterTransformer_Backend(
         const std::filesystem::__cxx11::path& scorer_model_path,
@@ -135,17 +139,16 @@ class Scorer_FasterTransformer_Backend : public Vocinity::Context_Scorer::Scorer
             cublas_wrapper.setGemmConfig(CUDA_R_16F, CUDA_R_16F, CUDA_R_16F, CUDA_R_32F);
         }
         else
-#		else
+#		endif
         {
             cublas_wrapper.setFP32GemmConfig();
         }
-#		endif
-            gpt_weights =
-                fastertransformer::GptWeight<half>(_model_configuration.hidden_units,
-                                                   _model_configuration.inter_size,
-                                                   _model_configuration.vocab_size,
-                                                   _model_configuration.decoder_layers,
-                                                   _configuration.max_seq_len);
+        gpt_weights =
+            fastertransformer::GptWeight<precision>(_model_configuration.hidden_units,
+                                                    _model_configuration.inter_size,
+                                                    _model_configuration.vocab_size,
+                                                    _model_configuration.decoder_layers,
+                                                    get_max_input_sequence_length());
 
         gpt_weights.loadModel(scorer_model_path);
 
@@ -157,16 +160,14 @@ class Scorer_FasterTransformer_Backend : public Vocinity::Context_Scorer::Scorer
         }
 #		endif
 
-        const int start_id = 50256; ///////////////////////////////////////////////////
-        const int end_id   = 50256;
-
-        total_output_len = max_input_len + _configuration.request_output_len;
-        if(total_output_len > (int) _configuration.max_seq_len)
+        max_output_seq_len = /////////////////////???//////////////////////////
+            get_max_input_sequence_length() + _configuration.request_output_len;
+        if(max_output_seq_len > (int) get_max_input_sequence_length())
         {
-            printf("[ERROR] total_output_len (%d) should be <= max_seq_len (%ld). \n",
-                   total_output_len,
-                   _configuration.max_seq_len);
-            exit(-1);
+            throw std::runtime_error(
+                "[ERROR] total_output_len " + std::to_string(max_output_seq_len)
+                + " should be <= max_seq_len "
+                + std::to_string(get_max_input_sequence_length()) + ". \n");
         }
 
         gpt = Gpt<precision>(0, // max_batch_size, FT will adjust the buffer automatically.
@@ -178,8 +179,8 @@ class Scorer_FasterTransformer_Backend : public Vocinity::Context_Scorer::Scorer
                              _model_configuration.inter_size,
                              _model_configuration.decoder_layers,
                              _model_configuration.vocab_size,
-                             start_id,
-                             end_id,
+                             _model_configuration.beginning_of_text_token_id,
+                             _model_configuration.end_of_text_token_id,
                              0.0f,
                              _configuration.top_k,
                              _configuration.top_p,
@@ -193,27 +194,158 @@ class Scorer_FasterTransformer_Backend : public Vocinity::Context_Scorer::Scorer
                              false,
                              &prop,
                              _configuration.sparse);
+        setup_buffers();
+    }
 
+    virtual ~Scorer_FasterTransformer_Backend() override
+    {
+        fastertransformer::deviceFree(d_output_ids);
+        fastertransformer::deviceFree(d_parent_ids);
+        fastertransformer::deviceFree(d_sequence_lengths);
+        fastertransformer::deviceFree(d_input_ids);
+        fastertransformer::deviceFree(d_input_lengths);
+        fastertransformer::deviceFree(d_output_cum_log_probs);
+#		ifdef SPARSITY_ENABLED
+        cusparseLtDestroy(&cusparselt_handle);
+#		endif
+        delete cublas_algo_map;
+    }
+
+  public:
+    std::pair<torch::Tensor, torch::Tensor> score(const at::Tensor& input_ids,
+                                                  const at::Tensor& att_mask,
+                                                  const torch::Tensor& labels) override
+    {
+        const Batch_Size batch_size       = input_ids.size(0);
+        const Batch_Seq_Len batch_seq_len = input_ids.size(1);
+
+        if(batch_size not_eq _configuration.request_batch_size)
+        {
+            _configuration.request_batch_size = batch_size;
+            setup_buffers();
+        }
+
+        fastertransformer::check_cuda_error(
+            cudaMemcpyAsync(d_input_ids,
+                            input_ids.data_ptr(),
+                            _configuration.request_batch_size * _configuration.beam_width
+                                * get_max_input_sequence_length(),
+                            cudaMemcpyDeviceToDevice,
+                            _stream));
+
+        fastertransformer::check_cuda_error(
+            cudaMemcpyAsync(d_input_lengths,
+                            v_start_lengths.data_ptr(),
+                            _configuration.request_batch_size * _configuration.beam_width,
+                            cudaMemcpyDeviceToDevice,
+                            _stream));
+
+#		ifdef QT_DEBUG
+        fastertransformer::print_mem_usage();
+        struct timeval start, end;
+        gettimeofday(&start, NULL);
+#		endif
+        cudaDeviceSynchronize();
+
+        gpt.forward(&output_tensors, &input_tensors, &gpt_weights);
+
+        cudaDeviceSynchronize();
+#		ifdef QT_DEBUG
+        gettimeofday(&end, NULL);
+#		endif
+#		ifdef QT_DEBUG
+        printf("[INFO] request_batch_size %ld beam_width %ld head_num %ld size_per_head %ld "
+               "total_output_len %d"
+               " decoder_layers %ld vocab_size %ld FT-CPP-decoding-beamsearch-time %.2f ms\n",
+               _configuration.request_batch_size,
+               _configuration.beam_width,
+               _model_configuration.head_num,
+               _model_configuration.size_per_head,
+               total_output_len,
+               _model_configuration.decoder_layers,
+               _model_configuration.vocab_size,
+               ((end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) * 0.001));
+#		endif
+
+        const size_t outCount =
+            max_output_seq_len * _configuration.request_batch_size * _configuration.beam_width;
+
+        c10::ScalarType torch_precision;
+#		ifndef CUDA_FP16_AVAILABLE
+        if(std::is_same_v<precision, half>)
+        {
+            torch_precision = torch::kFloat16;
+        }
+        else  if(std::is_same_v<precision, float>)
+#		endif
+        {
+            torch_precision = torch::kFloat32;
+        }
+
+        const torch::Tensor generated =
+            torch::from_blob(d_output_ids,
+                             {max_output_seq_len , _configuration.request_batch_size , _configuration.beam_width},
+                             torch::TensorOptions().device(torch::kCUDA).dtype(torch_precision));
+
+        return {generated,generated};
+    }
+
+    virtual constexpr ushort get_max_sequence_length() override
+    {
+        return get_max_input_sequence_length();
+    }
+
+    virtual constexpr int64_t get_label_ignore_id() override
+    {
+        return -100;
+    }
+
+    virtual constexpr int64_t get_stride() override
+    {
+        return get_max_sequence_length() / 2;
+    }
+
+  private:
+    static constexpr ushort get_max_input_sequence_length()
+    {
+        return 128;
+    }
+
+    void setup_buffers()
+    {
+        fastertransformer::deviceFree(d_output_ids);
         fastertransformer::deviceMalloc(&d_output_ids,
                                         _configuration.request_batch_size
-                                            * _configuration.beam_width * total_output_len,
+                                            * _configuration.beam_width * max_output_seq_len,
                                         false);
+
+        fastertransformer::deviceFree(d_parent_ids);
         fastertransformer::deviceMalloc(&d_parent_ids,
                                         _configuration.request_batch_size
-                                            * _configuration.beam_width * total_output_len,
+                                            * _configuration.beam_width * max_output_seq_len,
                                         false);
+
+        fastertransformer::deviceFree(d_sequence_lengths);
         fastertransformer::deviceMalloc(&d_sequence_lengths,
                                         _configuration.request_batch_size
                                             * _configuration.beam_width,
                                         false);
 
+        fastertransformer::deviceFree(d_output_cum_log_probs);
+        fastertransformer::deviceMalloc(&d_output_cum_log_probs,
+                                        _configuration.request_batch_size
+                                            * _configuration.beam_width
+                                            * _configuration.request_output_len,
+                                        false);
+
         input_tensors = std::vector<fastertransformer::Tensor>{
-            fastertransformer::Tensor{fastertransformer::MEMORY_GPU,
-                                      fastertransformer::TYPE_INT32,
-                                      std::vector<size_t>{_configuration.request_batch_size
-                                                              * _configuration.beam_width,
-                                                          (size_t) max_input_len},
-                                      d_input_ids},
+            fastertransformer::Tensor{
+                fastertransformer::MEMORY_GPU,
+                fastertransformer::TYPE_INT32,
+                std::vector<size_t>{_configuration.request_batch_size
+                                        * _configuration.beam_width,
+                                    (size_t) get_max_input_sequence_length()},
+                d_input_ids},
             fastertransformer::Tensor{fastertransformer::MEMORY_GPU,
                                       fastertransformer::TYPE_INT32,
                                       std::vector<size_t>{_configuration.request_batch_size
@@ -222,18 +354,18 @@ class Scorer_FasterTransformer_Backend : public Vocinity::Context_Scorer::Scorer
             fastertransformer::Tensor{fastertransformer::MEMORY_CPU,
                                       fastertransformer::TYPE_INT32,
                                       std::vector<size_t>{1},
-                                      &total_output_len}};
+                                      &max_output_seq_len}};
 
         output_tensors = std::vector<fastertransformer::Tensor>{
             fastertransformer::Tensor{fastertransformer::MEMORY_GPU,
                                       fastertransformer::TYPE_INT32,
                                       std::vector<size_t>{_configuration.request_batch_size,
                                                           _configuration.beam_width,
-                                                          (size_t) total_output_len},
+                                                          (size_t) max_output_seq_len},
                                       d_output_ids},
             fastertransformer::Tensor{fastertransformer::MEMORY_GPU,
                                       fastertransformer::TYPE_INT32,
-                                      std::vector<size_t>{(size_t) total_output_len,
+                                      std::vector<size_t>{(size_t) max_output_seq_len,
                                                           _configuration.request_batch_size,
                                                           _configuration.beam_width},
                                       d_parent_ids},
@@ -248,20 +380,16 @@ class Scorer_FasterTransformer_Backend : public Vocinity::Context_Scorer::Scorer
                 std::vector<size_t>{(size_t) _configuration.request_output_len,
                                     _configuration.request_batch_size,
                                     _configuration.beam_width},
-                nullptr}};
+                d_output_cum_log_probs}};
 
-        max_input_len = 1024; ///////////////////////////////////////////////////////////
-        if(max_input_len == 0)
-        {
-            // unconditional case, no input ids, so do nothing.
-            throw std::runtime_error("max input len is zero");
-        }
-
-        // conditional case.
+        fastertransformer::deviceFree(d_input_ids);
         fastertransformer::deviceMalloc(&d_input_ids,
                                         _configuration.request_batch_size
-                                            * _configuration.beam_width * max_input_len,
+                                            * _configuration.beam_width
+                                            * get_max_input_sequence_length(),
                                         false);
+
+        fastertransformer::deviceFree(d_input_lengths);
         fastertransformer::deviceMalloc(&d_input_lengths,
                                         _configuration.request_batch_size
                                             * _configuration.beam_width,
@@ -272,93 +400,15 @@ class Scorer_FasterTransformer_Backend : public Vocinity::Context_Scorer::Scorer
 #		endif
     }
 
-    virtual ~Scorer_FasterTransformer_Backend() override
-    {
-#		ifdef SPARSITY_ENABLED
-        cusparseLtDestroy(&cusparselt_handle);
-#		endif
-        delete cublas_algo_map;
-    }
-
-  public:
-    std::pair<torch::Tensor, torch::Tensor> score(const at::Tensor& input_ids,
-                                                  const at::Tensor& att_mask,
-                                                  const torch::Tensor& labels) override
-    {
-        std::vector<int> v_start_lengths;
-        std::vector<int> v_start_ids;
-
-        fastertransformer::cudaH2Dcpy(d_input_ids,
-                                      v_start_ids.data(),
-                                      _configuration.request_batch_size
-                                          * _configuration.beam_width * max_input_len);
-        fastertransformer::cudaH2Dcpy(d_input_lengths,
-                                      v_start_lengths.data(),
-                                      _configuration.request_batch_size
-                                          * _configuration.beam_width);
-#		ifdef QT_DEBUG
-        fastertransformer::print_mem_usage();
-        struct timeval start, end;
-        gettimeofday(&start, NULL);
-#		endif
-        cudaDeviceSynchronize();
-
-        gpt.forward(&output_tensors, &input_tensors, &gpt_weights);
-
-        cudaDeviceSynchronize();
-#		ifdef QT_DEBUG
-        gettimeofday(&end, NULL);
-#		endif
-
-        printf("[INFO] request_batch_size %ld beam_width %ld head_num %ld size_per_head %ld "
-               "total_output_len %d"
-               " decoder_layers %ld vocab_size %ld FT-CPP-decoding-beamsearch-time %.2f ms\n",
-               _configuration.request_batch_size,
-               _configuration.beam_width,
-               _model_configuration.head_num,
-               _model_configuration.size_per_head,
-               total_output_len,
-               _model_configuration.decoder_layers,
-               _model_configuration.vocab_size
-#		ifdef QT_DEBUG
-               ,
-               ((end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) * 0.001)
-#		endif
-        );
-
-        size_t outCount =
-            total_output_len * _configuration.request_batch_size * _configuration.beam_width;
-        int* hBuf = new int[outCount];
-        fastertransformer::cudaD2Hcpy(hBuf, d_output_ids, outCount);
-
-
-        delete[] hBuf;
-    }
-
-    virtual constexpr ushort get_max_sequence_length() override
-    {
-        return 1024;
-    }
-
-    virtual constexpr int64_t get_label_ignore_id() override
-    {
-        return -100;
-    }
-
-    virtual constexpr int64_t get_stride() override
-    {
-        return 512;
-    }
-
-
   private:
-  private:
-    int total_output_len = 0;
+    cudaStream_t _stream;
+    int max_output_seq_len = 0;
     std::vector<fastertransformer::Tensor> output_tensors;
     std::vector<fastertransformer::Tensor> input_tensors;
-    int* d_output_ids       = nullptr;
-    int* d_parent_ids       = nullptr;
-    int* d_sequence_lengths = nullptr;
+    int* d_output_ids           = nullptr;
+    int* d_parent_ids           = nullptr;
+    int* d_sequence_lengths     = nullptr;
+    int* d_output_cum_log_probs = nullptr;
     fastertransformer::Gpt<precision> gpt;
     fastertransformer::GptWeight<precision> gpt_weights;
     fastertransformer::Allocator<fastertransformer::AllocatorType::CUDA> allocator;
@@ -372,7 +422,6 @@ class Scorer_FasterTransformer_Backend : public Vocinity::Context_Scorer::Scorer
     cudaStream_t stream;
     cublasHandle_t cublas_handle;
     cublasLtHandle_t cublaslt_handle;
-    int max_input_len    = 0;
     int* d_input_ids     = nullptr;
     int* d_input_lengths = nullptr;
     const Faster_Transformer_Model_Configuration _model_configuration;
