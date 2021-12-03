@@ -1,5 +1,5 @@
-#ifndef HOMOPHONIC-ALTERNATIVES_H
-#define HOMOPHONIC-ALTERNATIVES_H
+#ifndef HOMOPHONIC_ALTERNATIVES_H
+#define HOMOPHONIC_ALTERNATIVES_H
 
 #include <akil/aMisc.hpp>
 
@@ -20,7 +20,7 @@ namespace Vocinity
 #endif
         using Word           = std::string;
         using Pronounciation = std::string;
-        using Distance       = ushort;
+        using Distance       = short;
         /**
      * + is addition, - is deletion, ~ is either nothing (when distance is zero) or substitution.
      */

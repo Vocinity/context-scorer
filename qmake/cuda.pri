@@ -1,20 +1,6 @@
 SYSTEM_NAME = unix         # Depending on your system either 'Win32', 'x64', or 'Win64'
 SYSTEM_TYPE = 64
-############################################################################################333
-DEFINES +=
-CONFIG +=
-CUDA_DEFINES +=
-DEFINES +=
-CONFIG +=
-CUDA_DEFINES +=
-
-for(_defines, CUDA_DEFINES):{
-    formatted_defines += -D$$_defines
-}
-
-formatted_defines += -std=c++14 -expt-relaxed-constexpr
-CUDA_DEFINES = $$formatted_defines
-############################################################################################333
+############################################################################################
 !isEmpty(CUDA_WANTED_ARCHS){
     CUDA_COMPUTE_ARCH += $$CUDA_WANTED_ARCHS
 }
@@ -58,15 +44,38 @@ equals(CUDA_MINIMUM_ARCH, 72) {
     DEFINES +=CUDA_DLA_AVAILABLE
     CONFIG +=CUDA_DLA_AVAILABLE
 }
-############################################################################################333
+############################################################################################
+DEFINES +=
+CONFIG +=
+CUDA_DEFINES +=
+DEFINES +=
+CONFIG +=
+CUDA_DEFINES +=
+
+FASTER_TRANSFORMER_AVAILABLE{
+    CUDA_INT8_TENSOR_CORES_AVAILABLE{
+        DEFINES+= WMMA #SPARSITY_ENABLED
+        CUDA_DEFINES+= WMMA #SPARSITY_ENABLED
+    }
+    DEFINES+= BUILD_GPT CUDA11_MODE
+    CONFIG+= BUILD_GPT
+    CUDA_DEFINES+= BUILD_GPT CUDA11_MODE
+}
+
+for(_defines, CUDA_DEFINES):{
+    formatted_defines += -D$$_defines
+}
+
+CUDA_DEFINES = $$formatted_defines
+############################################################################################
 INCLUDEPATH += $${DEPS_ROOT}/include
 INCLUDEPATH += $${DEPS_ROOT}/include/akil
 THIRD_PARTY_SRC=$$PWD/../3rdparty/
+
 CUDA_SDK= /usr/local/cuda/
-!USE_TORCH_CUDA_RT{
-    QMAKE_LIBDIR += $$CUDA_SDK/lib64/
-    LIBS+= -lcufft -lcublas -lcublasLt -lcurand -lcusolver
-}
+QMAKE_LIBDIR += $$CUDA_SDK/lib64/
+LIBS+= -lcufft -lcublas -lcublasLt -lcurand -lcusolver
+
 LIGHTSEQ_AVAILABLE{
     CENTOS{
         #
@@ -81,6 +90,7 @@ LIGHTSEQ_AVAILABLE{
                    $$PWD/../3rdparty/lightseq/lightseq/inference/kernels/gptKernels.cc.cu
 }else{
     FASTER_TRANSFORMER_AVAILABLE{
+        INCLUDEPATH+= $${THIRD_PARTY_SRC}/FasterTransformer
         CUDA_SOURCES+= $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/kernels/layernorm_kernels.cu \
                        #$${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/kernels/layernorm_int8_kernels.cu \
                        $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/kernels/activation_kernels.cu \
@@ -106,7 +116,7 @@ CUDA_OBJECTS_DIR = ${OBJECTS_DIR}
 CUDA_INC = $$join(INCLUDEPATH,'" -I"','-I"','"')
 CUDA_LIBS += $$join(LIBS,'.so ', '', '.so')
 ############################################################################################333
-NVCC_OPTIONS += --use_fast_math --ptxas-options=-v
+NVCC_OPTIONS += -std=c++14 --use_fast_math --ptxas-options=-v --expt-extended-lambda --expt-relaxed-constexpr
 CONFIG(debug, debug|release) {
         cuda_d.input = CUDA_SOURCES
         cuda_d.output = $$CUDA_OBJECTS_DIR/${QMAKE_FILE_BASE}_cuda.o
@@ -121,7 +131,7 @@ else {
         cuda.input = CUDA_SOURCES
         cuda.output = $$CUDA_OBJECTS_DIR/${QMAKE_FILE_BASE}_cuda.o
         cuda.commands = $$CUDA_SDK/bin/nvcc $$CUDA_DEFINES  --machine $$SYSTEM_TYPE\
-        $$CUDA_ARCH -Xcompiler '-fPIC' -c $$NVCC_OPTIONS $$CUDA_INC $$CUDA_LIBS -o \
+        $$CUDA_ARCH -Xcompiler  -O3 '-fPIC' -c $$NVCC_OPTIONS $$CUDA_INC $$CUDA_LIBS -o \
         ${QMAKE_FILE_OUT} ${QMAKE_FILE_NAME} \
                 2>&1 | sed -r \"s/\\(([0-9]+)\\)/:\\1/g\" 1>&2
         cuda.dependency_type = TYPE_C

@@ -36,8 +36,8 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
 #endif
         for(const auto& [query_word, outer_pron] : _phonemes_vector)
         {
-            const auto& [query_pronounciation, query_phonemes, query_phonemes_count] =
-                outer_pron;
+//            const auto& [query_pronounciation, query_phonemes, query_phonemes_count] =
+//                outer_pron;
             {
 #ifdef SOUNDEX_AVAILABLE
                 const auto soundex_encoding = akil::string::get_soundex_hash(query_word);

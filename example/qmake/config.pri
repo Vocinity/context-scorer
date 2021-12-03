@@ -178,6 +178,11 @@ unix{
     extensionProcessor(RANGE_V3)
     enableExtension(TORCH)
 
+    FASTER_TRANSFORMER_AVAILABLE{
+        DEFINES+= BUILD_GPT CUDA11_MODE WMMA
+        CONFIG+= BUILD_GPT CUDA11_MODE WMMA
+    }
+
     #    CONFIG(debug, debug|release) {
     #    CONFIG += sanitizer
     #    CONFIG += sanitize_address

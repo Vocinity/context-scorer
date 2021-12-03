@@ -1,5 +1,5 @@
-#ifndef CONTEXT-SCORER_H
-#define CONTEXT-SCORER_H
+#ifndef CONTEXT_SCORER_H
+#define CONTEXT_SCORER_H
 
 #include <akil/aMisc.hpp>
 

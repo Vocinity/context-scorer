@@ -233,12 +233,12 @@ class Scorer_FasterTransformer_Backend : public Vocinity::Context_Scorer::Scorer
                             cudaMemcpyDeviceToDevice,
                             _stream));
 
-        fastertransformer::check_cuda_error(
-            cudaMemcpyAsync(d_input_lengths,
-                            v_start_lengths.data_ptr(),
-                            _configuration.request_batch_size * _configuration.beam_width,
-                            cudaMemcpyDeviceToDevice,
-                            _stream));
+//        fastertransformer::check_cuda_error(
+//            cudaMemcpyAsync(d_input_lengths,
+//                            v_start_lengths.data_ptr(),
+//                            _configuration.request_batch_size * _configuration.beam_width,
+//                            cudaMemcpyDeviceToDevice,
+//                            _stream));
 
 #		ifdef QT_DEBUG
         fastertransformer::print_mem_usage();
