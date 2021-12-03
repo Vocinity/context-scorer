@@ -37,15 +37,16 @@ CUDA_AVAILABLE{
         INCLUDEPATH += $${THIRD_PARTY_SRC}/FasterTransformer/
         SOURCES+= $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/models/gpt/Gpt.cc \
                   $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/models/gpt/GptContextDecoder.cc \
+                  $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/models/decoder/Decoder.cc \
                   $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/models/gpt/GptDecoder.cc \
                   $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/models/gpt/GptWeight.cc \
                   $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/models/gpt/GptDecoderLayerWeight.cc \
                   $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/utils/cublasMMWrapper.cc \
-                  #$${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/utils/cublasINT8MMWrapper.cc \
                   $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/utils/cublasAlgoMap.cc \
                   $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/layers/FfnLayer.cc \
+                  $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/layers/attention_layers/DecoderSelfAttentionLayer.cc \
+                  $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/layers/sampling_layers/BaseSamplingLayer.cc \
                   $${THIRD_PARTY_SRC}/FasterTransformer/src/fastertransformer/layers/attention_layers/GptContextAttentionLayer.cc
-
     }
 }
 

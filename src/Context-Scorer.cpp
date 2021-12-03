@@ -1,7 +1,7 @@
-#include "backends/Torch-Scorer-Backend.hpp"
-#include "backends/LightSeq-Scorer-Backend.hpp"
-#include "backends/Faster_Transformer-Scorer-Backend.hpp"
 #include "Tokenizer.cpp"
+#include "backends/Faster_Transformer-Scorer-Backend.hpp"
+#include "backends/LightSeq-Scorer-Backend.hpp"
+#include "backends/Torch-Scorer-Backend.hpp"
 
 Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_model_path,
                                          const Model_Family& family,
@@ -45,8 +45,15 @@ Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_mod
         }
 #	else
 #		ifdef FASTER_TRANSFORMER_AVAILABLE
+#			ifdef CUDA_FP16_AVAILABLE
+        _inference_backend =
+            std::make_unique<Scorer_FasterTransformer_Backend<half>>(scorer_model_path);
+#			else
+        _inference_backend =
+            std::make_unique<Scorer_FasterTransformer_Backend<float>>(scorer_model_path);
+#			endif
 #		else
-        _inference_backend = std::make_unique<Scorer_FasterTransformer_Backend>(scorer_model_path);
+        _inference_backend = std::make_unique<Scorer_Torch_Backend>(scorer_model_path, device);
 #		endif
 #	endif
     }
@@ -55,7 +62,6 @@ Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_mod
     {
         _inference_backend = std::make_unique<Scorer_Torch_Backend>(scorer_model_path);
     }
-
 }
 
 Vocinity::Context_Scorer::~Context_Scorer()
@@ -156,11 +162,10 @@ Vocinity::Context_Scorer::score(const std::string& sentence, const bool per_char
 #	ifdef LIGHTSEQ_AVAILABLE
         if(_device == torch::kCUDA)
         {
-            const auto& out_mask =
-                input_ids.index({Slice(std::min(std::max((unsigned long) 1, begin_loc),
-                                                current_actual_token_end_loc),
-                                       current_actual_token_end_loc)});
-            target_log_probs = log_probs.gather(-1, out_mask);
+            const auto& out_mask = input_ids.index({Slice(
+                std::min(std::max((unsigned long) 1, begin_loc), current_actual_token_end_loc),
+                current_actual_token_end_loc)});
+            target_log_probs     = log_probs.gather(-1, out_mask);
         }
         else
 #	endif

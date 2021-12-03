@@ -91,9 +91,10 @@ class Scorer_FasterTransformer_Backend : public Vocinity::Context_Scorer::Scorer
     using Batch_Seq_Len = int;
 
   public:
-    Scorer_FasterTransformer_Backend(
+    explicit Scorer_FasterTransformer_Backend(
         const std::filesystem::__cxx11::path& scorer_model_path,
-        const Faster_Transformer_Model_Configuration::GPT2_MODELS gpt_model)
+        const Faster_Transformer_Model_Configuration::GPT2_MODELS gpt_model =
+            Faster_Transformer_Model_Configuration::GPT2_MODELS::gpt_124M)
         : _model_configuration(Faster_Transformer_Model_Configuration(gpt_model))
         , allocator(fastertransformer::Allocator<fastertransformer::AllocatorType::CUDA>(
               fastertransformer::getDevice()))
@@ -170,7 +171,7 @@ class Scorer_FasterTransformer_Backend : public Vocinity::Context_Scorer::Scorer
                 + std::to_string(get_max_input_sequence_length()) + ". \n");
         }
 
-        gpt = Gpt<precision>(0, // max_batch_size, FT will adjust the buffer automatically.
+        gpt = std::make_unique<fastertransformer::Gpt<precision>>(0, // max_batch_size, FT will adjust the buffer automatically.
                              0, // max_seq_len, FT will adjust the buffer automatically.
                              0, // max_input_len, FT will adjust the buffer automatically.
                              _configuration.beam_width,
@@ -233,12 +234,12 @@ class Scorer_FasterTransformer_Backend : public Vocinity::Context_Scorer::Scorer
                             cudaMemcpyDeviceToDevice,
                             _stream));
 
-//        fastertransformer::check_cuda_error(
-//            cudaMemcpyAsync(d_input_lengths,
-//                            v_start_lengths.data_ptr(),
-//                            _configuration.request_batch_size * _configuration.beam_width,
-//                            cudaMemcpyDeviceToDevice,
-//                            _stream));
+        //        fastertransformer::check_cuda_error(
+        //            cudaMemcpyAsync(d_input_lengths,
+        //                            v_start_lengths.data_ptr(),
+        //                            _configuration.request_batch_size * _configuration.beam_width,
+        //                            cudaMemcpyDeviceToDevice,
+        //                            _stream));
 
 #		ifdef QT_DEBUG
         fastertransformer::print_mem_usage();
@@ -247,7 +248,7 @@ class Scorer_FasterTransformer_Backend : public Vocinity::Context_Scorer::Scorer
 #		endif
         cudaDeviceSynchronize();
 
-        gpt.forward(&output_tensors, &input_tensors, &gpt_weights);
+        gpt->forward(&output_tensors, &input_tensors, &gpt_weights);
 
         cudaDeviceSynchronize();
 #		ifdef QT_DEBUG
@@ -276,18 +277,18 @@ class Scorer_FasterTransformer_Backend : public Vocinity::Context_Scorer::Scorer
         {
             torch_precision = torch::kFloat16;
         }
-        else  if(std::is_same_v<precision, float>)
+        else if(std::is_same_v<precision, float>)
 #		endif
         {
             torch_precision = torch::kFloat32;
         }
 
-        const torch::Tensor generated =
-            torch::from_blob(d_output_ids,
-                             {max_output_seq_len , _configuration.request_batch_size , _configuration.beam_width},
-                             torch::TensorOptions().device(torch::kCUDA).dtype(torch_precision));
+        const torch::Tensor generated = torch::from_blob(
+            d_output_ids,
+            {max_output_seq_len, _configuration.request_batch_size, _configuration.beam_width},
+            torch::TensorOptions().device(torch::kCUDA).dtype(torch_precision));
 
-        return {generated,generated};
+        return {generated, generated};
     }
 
     virtual constexpr ushort get_max_sequence_length() override
@@ -409,7 +410,7 @@ class Scorer_FasterTransformer_Backend : public Vocinity::Context_Scorer::Scorer
     int* d_parent_ids           = nullptr;
     int* d_sequence_lengths     = nullptr;
     int* d_output_cum_log_probs = nullptr;
-    fastertransformer::Gpt<precision> gpt;
+    std::unique_ptr<fastertransformer::Gpt<precision>> gpt;
     fastertransformer::GptWeight<precision> gpt_weights;
     fastertransformer::Allocator<fastertransformer::AllocatorType::CUDA> allocator;
 #		ifdef SPARSITY_ENABLED

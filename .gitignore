@@ -44,3 +44,5 @@ src/Homophonic_Alternatives_orj.cpp
 3rdparty/build-lightseq-5_12_8_sys-Debug/
 
 3rdparty/build-lightseq-5_12_8_sys-Release/
+
+qmake/dummy.cu
