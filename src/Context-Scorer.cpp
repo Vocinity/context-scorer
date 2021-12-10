@@ -1,6 +1,7 @@
 #include "Tokenizer.cpp"
 #include "backends/Faster_Transformer-Scorer-Backend.hpp"
 #include "backends/LightSeq-Scorer-Backend.hpp"
+#include "backends/ONNX-Scorer-Backend.hpp"
 #include "backends/Torch-Scorer-Backend.hpp"
 
 Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_model_path,
@@ -28,8 +29,12 @@ Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_mod
 #ifdef CUDA_AVAILABLE
     if(device == Inference_Backend::CUDA)
     {
-#	ifdef LIGHTSEQ_AVAILABLE
-#		ifdef CUDA_FP16_AVAILABLE
+#	ifdef ONNX_AVAILABLE
+        _inference_backend = std::make_unique<Scorer_ONNX_Backend>(
+            scorer_model_path, precision, _tokenizer->get_vocab_size(), device);
+#	else
+#		ifdef LIGHTSEQ_AVAILABLE
+#			ifdef CUDA_FP16_AVAILABLE
         if(precision == Precision::FP16)
         {
             _inference_backend =
@@ -37,30 +42,36 @@ Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_mod
                     scorer_model_path);
         }
         else
-#		endif
+#			endif
         {
             _inference_backend =
                 std::make_unique<Scorer_LightSeq_Backend<lightseq::cuda::OperationType::FP32>>(
                     scorer_model_path);
         }
-#	else
-#		ifdef FASTER_TRANSFORMER_AVAILABLE
-#			ifdef CUDA_FP16_AVAILABLE
+#		else
+#			ifdef FASTER_TRANSFORMER_AVAILABLE
+#				ifdef CUDA_FP16_AVAILABLE
         _inference_backend =
             std::make_unique<Scorer_FasterTransformer_Backend<half>>(scorer_model_path);
-#			else
+#				else
         _inference_backend =
             std::make_unique<Scorer_FasterTransformer_Backend<float>>(scorer_model_path);
-#			endif
-#		else
+#				endif
+#			else
         _inference_backend = std::make_unique<Scorer_Torch_Backend>(scorer_model_path, device);
+#			endif
 #		endif
 #	endif
     }
     else
 #endif
     {
+#ifdef ONNX_AVAILABLE
+        _inference_backend = std::make_unique<Scorer_ONNX_Backend>(
+            scorer_model_path, precision, _tokenizer->get_vocab_size());
+#else
         _inference_backend = std::make_unique<Scorer_Torch_Backend>(scorer_model_path);
+#endif
     }
 }
 

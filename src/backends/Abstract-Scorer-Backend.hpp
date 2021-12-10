@@ -14,11 +14,11 @@ class Vocinity::Context_Scorer::Scorer_Backend
         const at::Tensor& att_mask,
         const torch::Tensor& labels = torch::Tensor()) = 0;
 
-    virtual constexpr ushort get_max_sequence_length() = 0;
+    virtual ushort get_max_sequence_length() = 0;
 
-    virtual constexpr int64_t get_label_ignore_id() = 0;
+    virtual int64_t get_label_ignore_id() = 0;
 
-    virtual constexpr int64_t get_stride() = 0;
+    virtual int64_t get_stride() = 0;
 };
 
 

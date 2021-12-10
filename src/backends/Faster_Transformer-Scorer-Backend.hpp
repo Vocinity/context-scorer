@@ -291,17 +291,17 @@ class Scorer_FasterTransformer_Backend : public Vocinity::Context_Scorer::Scorer
         return {generated, generated};
     }
 
-    virtual constexpr ushort get_max_sequence_length() override
+    virtual ushort get_max_sequence_length() override
     {
         return get_max_input_sequence_length();
     }
 
-    virtual constexpr int64_t get_label_ignore_id() override
+    virtual int64_t get_label_ignore_id() override
     {
         return -100;
     }
 
-    virtual constexpr int64_t get_stride() override
+    virtual int64_t get_stride() override
     {
         return get_max_sequence_length() / 2;
     }

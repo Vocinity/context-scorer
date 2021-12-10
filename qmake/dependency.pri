@@ -9,6 +9,7 @@ HEADERS += $${SRC_DIR}/Context-Scorer.hpp \
            $${SRC_DIR}/backends/Faster_Transformer-Scorer-Backend.hpp \
            $${SRC_DIR}/backends/Abstract-Scorer-Backend.hpp \
            $${SRC_DIR}/backends/Torch-Scorer-Backend.hpp \
+           $${SRC_DIR}/backends/ONNX-Scorer-Backend.hpp \
            $${SRC_DIR}/backends/LightSeq-Scorer-Backend.hpp \
            $${SRC_DIR}/Homophonic-Alternatives.hpp
 
@@ -20,6 +21,22 @@ LIGHTSEQ_AVAILABLE{
     PROTOS+=$$PWD/../3rdparty/lightseq/lightseq/inference/proto/gpt.proto
     PROTOPATH =
     include(protobuf.pri)
+}
+
+TENSOR_RT_AVAILABLE{
+    INCLUDEPATH+=/usr/local/trt/include
+    LIBS+= -L/usr/local/trt/lib -lnvinfer -lnvinfer_plugin
+}
+
+ONNX_AVAILABLE{
+    INCLUDEPATH+=/opt/local/include/onnx
+    LIBS+= -L/opt/local/lib/onnx -lonnxruntime -lonnxruntime_providers_shared
+    CUDA_AVAILABLE{
+        LIBS+= -L/opt/local/lib/onnx -lonnxruntime_providers_cuda
+        TENSOR_RT_AVAILABLE{
+            LIBS+= -L/opt/local/lib/onnx -lonnxruntime_providers_tensorrt
+        }
+    }
 }
 
 THIRD_PARTY_SRC=$$PWD/../3rdparty/

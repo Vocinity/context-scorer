@@ -116,17 +116,17 @@ class Scorer_LightSeq_Backend : public Vocinity::Context_Scorer::Scorer_Backend
         return {logits, losses};
     }
 
-    virtual constexpr ushort get_max_sequence_length() override
+    virtual ushort get_max_sequence_length() override
     {
         return 512;
     }
 
-    virtual constexpr int64_t get_label_ignore_id() override
+    virtual int64_t get_label_ignore_id() override
     {
         return -100;
     }
 
-    virtual constexpr int64_t get_stride() override
+    virtual int64_t get_stride() override
     {
         return 256;
     }

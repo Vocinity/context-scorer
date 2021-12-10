@@ -63,17 +63,17 @@ class Scorer_Torch_Backend : public Vocinity::Context_Scorer::Scorer_Backend
         return {logits, loss};
     }
 
-    virtual constexpr ushort get_max_sequence_length() override
+    virtual ushort get_max_sequence_length() override
     {
         return 1024;
     }
 
-    virtual constexpr int64_t get_label_ignore_id() override
+    virtual int64_t get_label_ignore_id() override
     {
         return -100;
     }
 
-    virtual constexpr int64_t get_stride() override
+    virtual int64_t get_stride() override
     {
         return 512;
     }

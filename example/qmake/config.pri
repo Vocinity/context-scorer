@@ -157,7 +157,9 @@ unix{
             CONFIG+=CUDA_AVAILABLE
             enableExtension(THRUST)
             #enableExtension(LIGHTSEQ)
-            enableExtension(FASTER_TRANSFORMER)
+            #enableExtension(FASTER_TRANSFORMER)
+            enableExtension(ONNX)
+            enableExtension(TENSOR_RT)
         }
     }
 

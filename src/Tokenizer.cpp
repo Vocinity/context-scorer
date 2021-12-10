@@ -254,6 +254,11 @@ namespace Vocinity
             return _bos_token_id;
         }
 
+        uint64_t get_vocab_size() const
+        {
+            return _vocab_size;
+        }
+
         int64_t get_eos_token_id() const
         {
             return _eos_token_id;
@@ -271,6 +276,7 @@ namespace Vocinity
         std::string unk_token;
         std::string mask_token;
         int64_t _bos_token_id, _eos_token_id, _pad_token_id;
+        uint64_t _vocab_size;
 
 
       private:
@@ -313,6 +319,7 @@ namespace Vocinity
 
     void Tokenizer::load_vocab(const std::string& vocab_file)
     {
+        _vocab_size=0;
         std::ifstream file_handle(vocab_file);
         assert(file_handle.good() && "file not exists");
         nlohmann::json vocab_data_;
@@ -320,6 +327,7 @@ namespace Vocinity
         auto vocab_ = vocab_data_.get<std::unordered_map<std::string, int64_t>>();
         for(auto item : vocab_)
         {
+            ++_vocab_size;
             vocab.insert({item.first, item.second});
         }
     };
