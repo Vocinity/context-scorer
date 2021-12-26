@@ -15,14 +15,14 @@
 // python -m onnxruntime.transformers.optimizer --model_type gpt2 --input distilgpt2.onnx --output distilgpt2_optimized.onnx --num_heads 12 --hidden_size 768 --opt_level 1 --only_onnxruntime --verbose #--input_int32 --float16
 //-------just know how to, dont use below-------
 // python -m onnxruntime.tools.symbolic_shape_infer --input ./distilgpt2_optimized.onnx --output ./distilgpt2_optimized-shaped.onnx --verbose 3 --auto_merge
-class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
+class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Backend
 {
     using Batch_Size    = int;
     using Batch_Seq_Len = int;
 
   public:
     Scorer_ONNX_Backend(const std::filesystem::__cxx11::path& scorer_model_path,
-                        const Vocinity::Context_Scorer::Precision precision,
+                        const Vocinity::Context_Scorer::Precision precision=Vocinity::Context_Scorer::Precision::FP32,
                         const unsigned long vocab_size = 50257,
                         const Vocinity::Context_Scorer::GPT_TYPE type =
                             Vocinity::Context_Scorer::GPT_TYPE::DistilGPT2
@@ -32,8 +32,7 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
                             Vocinity::Context_Scorer::Inference_Backend::CPU
 #	endif
                         )
-        : _precision(precision)
-        , _vocab_size(vocab_size)
+        : _vocab_size(vocab_size)
         , _type(type)
     {
         if(scorer_model_path.empty())
@@ -44,6 +43,8 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
 #	ifdef CUDA_AVAILABLE
         _device = device;
 #	endif
+        _precision = precision;
+
         const auto providers = Ort::GetAvailableProviders();
 
         std::cout << "Available providers: ";
@@ -56,7 +57,7 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
         session_options.SetIntraOpNumThreads(1);
         session_options.SetInterOpNumThreads(1);
         session_options.SetExecutionMode(ExecutionMode::ORT_PARALLEL);
-        //  session_options.SetLogSeverityLevel(0);
+      //  session_options.SetLogSeverityLevel(0);
         //   session_options.SetOptimizedModelFilePath(std::string(scorer_model_path.string()+"_runtime_optimized.onnx").c_str());
         session_options.AddConfigEntry("session.set_denormal_as_zero", "1");
         session_options.AddConfigEntry("optimization.enable_gelu_approximation", "1");
@@ -73,7 +74,7 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
             trt_options.trt_max_partition_iterations = 1000;
             trt_options.trt_min_subgraph_size        = 1;
             trt_options.trt_max_workspace_size       = 1 << 30;
-            trt_options.trt_engine_cache_enable      = true;
+            trt_options.trt_engine_cache_enable      = false; // true
             //trt_options.trt_engine_cache_path             = "";
             trt_options.trt_dump_subgraphs                = false; //
             trt_options.trt_engine_decryption_enable      = false;
@@ -213,6 +214,15 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
         //#	endif
         std::cout << "Everything is okay in initialization of " << scorer_model_path
                   << std::endl;
+
+        const auto& [hidden_size, num_attention_heads, num_layers, _] =
+            Abstract_Scorer_Backend::get_configuration(_type);
+
+        _past = torch::zeros(
+            {num_layers, 2, 1, num_attention_heads, 0, hidden_size / num_attention_heads},
+            torch::TensorOptions()
+                .dtype(get_torch_precision())
+                .device(get_torch_device(_device)));
     }
     Scorer_ONNX_Backend(const Scorer_ONNX_Backend& other) = delete;
     Scorer_ONNX_Backend& operator=(const Scorer_ONNX_Backend& other) = delete;
@@ -221,20 +231,16 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
     {}
 
   public:
-    Inference_Output score(const at::Tensor& input_ids_,
-                           const at::Tensor& att_mask_,
-                           const torch::Tensor& labels_,
+    Inference_Output score(const at::Tensor& input_ids,
+                           const at::Tensor& att_mask,
+                           const torch::Tensor& labels,
                            const torch::Tensor& past) override
     {
-        const auto input_ids = input_ids_.unsqueeze(0);
-        auto att_mask        = att_mask_.unsqueeze(0);
-        const auto labels    = labels_.unsqueeze(0);
-
         const Batch_Size batch_size                = input_ids.size(0);
         const Batch_Seq_Len actual_sequence_length = input_ids.size(-1);
 
         const auto& [hidden_size, num_attention_heads, num_layers, _] =
-            Scorer_Backend::get_configuration(_type);
+            Abstract_Scorer_Backend::get_configuration(_type);
 
         const torch::Tensor position_ids =
             (att_mask.cumsum(-1) - 1).masked_fill(att_mask == 0, 1);
@@ -259,26 +265,17 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
                                      input_ids.sizes().size());
         _binding->BindInput("input_ids", input_ids_bound);
 
-        c10::ScalarType precision;
-#	ifdef CUDA_FP16_AVAILABLE
-        if(_precision == Vocinity::Context_Scorer::Precision::FP16)
-        {
-            precision = torch::kFloat16;
-        }
-        else if(_precision == Vocinity::Context_Scorer::Precision::FP32)
-#	endif
-        {
-            precision = torch::kFloat32;
-        }
-        att_mask = att_mask.to(precision);
+        const c10::ScalarType precision = get_torch_precision();
+
+
+        const auto att_mask_fp = att_mask.to(precision);
         const Ort::Value att_mask_bound =
             Ort::Value::CreateTensor(memory_info_in_use,
-                                     reinterpret_cast<float*>(att_mask.data_ptr()),
+                                     reinterpret_cast<float*>(att_mask_fp.data_ptr()),
                                      batch_size * actual_sequence_length,
-                                     att_mask.sizes().data(),
-                                     att_mask.sizes().size());
+                                     att_mask_fp.sizes().data(),
+                                     att_mask_fp.sizes().size());
         _binding->BindInput("attention_mask", att_mask_bound);
-
 
         const Ort::Value position_ids_bound =
             Ort::Value::CreateTensor(memory_info_in_use,
@@ -317,7 +314,7 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
 
     virtual ushort get_max_sequence_length() override
     {
-        return std::max(_max_input_sequence_length / 16, 64);
+        return std::max(max_input_sequence_length / 16, 64);
     }
 
     virtual int64_t get_label_ignore_id() override
@@ -328,6 +325,22 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
     virtual int64_t get_stride() override
     {
         return get_max_sequence_length() / 2;
+    }
+
+    virtual c10::ScalarType get_torch_precision() const override
+    {
+        c10::ScalarType precision;
+#	ifdef CUDA_FP16_AVAILABLE
+        if(_precision == Vocinity::Context_Scorer::Precision::FP16)
+        {
+            precision = torch::kFloat16;
+        }
+        else if(_precision == Vocinity::Context_Scorer::Precision::FP32)
+#	endif
+        {
+            precision = torch::kFloat32;
+        }
+        return precision;
     }
 
   private:
@@ -351,20 +364,10 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
         auto& memory_info_in_use = _cpu_memory_info;
 #	endif
 
-        c10::ScalarType precision;
-#	ifdef CUDA_FP16_AVAILABLE
-        if(_precision == Vocinity::Context_Scorer::Precision::FP16)
-        {
-            precision = torch::kFloat16;
-        }
-        else if(_precision == Vocinity::Context_Scorer::Precision::FP32)
-#	endif
-        {
-            precision = torch::kFloat32;
-        }
+        const c10::ScalarType precision = get_torch_precision();
 
         const auto& [hidden_size, num_attention_heads, num_layers, _] =
-            Scorer_Backend::get_configuration(_type);
+            Abstract_Scorer_Backend::get_configuration(_type);
 
         logits = torch::zeros(
             {_batch_size, _batch_seq_len, _vocab_size},
@@ -413,9 +416,8 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
     static inline Ort::Env env;
     std::unique_ptr<Ort::Session> _session;
     Ort::AllocatorWithDefaultOptions _default_allocator;
-    static inline constexpr ushort _max_input_sequence_length = 1024;
-    Vocinity::Context_Scorer::Precision _precision;
-    unsigned long _vocab_size = 50257;
+    static inline constexpr ushort max_input_sequence_length = 1024;
+    unsigned long _vocab_size                                = 50257;
     torch::Tensor logits, present_states;
     Batch_Size _batch_size       = 0;
     Batch_Seq_Len _batch_seq_len = 0;

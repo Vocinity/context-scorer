@@ -39,6 +39,15 @@ main(int argc, char* argv[])
                          .count()
                   << " milliseconds\n\n";
 
+        scorer.score_contexts(utterances, true);
+
+        auto inference_chrono = std::chrono::high_resolution_clock::now();
+        const auto& results     = scorer.score_contexts(utterances, false);
+        const auto duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::high_resolution_clock::now() - inference_chrono)
+                .count();
+
         std::vector<std::tuple<std::string, Vocinity::Context_Scorer::Score, long>> scores;
         for(uint64_t utterance_order = 0; utterance_order < utterances.size();
             ++utterance_order)
@@ -47,14 +56,10 @@ main(int argc, char* argv[])
             {
                 continue;
             }
+
             const auto& utterance = utterances.at(utterance_order);
-            auto inference_chrono = std::chrono::high_resolution_clock::now();
-            const auto& score     = scorer.score(utterance, true);
-            const auto duration =
-                std::chrono::duration_cast<std::chrono::milliseconds>(
-                    std::chrono::high_resolution_clock::now() - inference_chrono)
-                    .count();
-            scores.push_back({utterance, score, duration});
+            const auto& score= results.at(utterance_order);
+            scores.push_back({utterance,score, duration});
             if(verbose)
             {
                 std::cout << instance_index << " Inference took " << duration
@@ -94,7 +99,7 @@ main(int argc, char* argv[])
         Vocinity::Homophonic_Alternative_Composer composer{phonetics_dictionary};
         Vocinity::Homophonic_Alternative_Composer::Instructions instructions;
         instructions.max_distance              = 2;
-        instructions.max_best_num_alternatives = 5;
+        instructions.max_best_num_alternatives = 2;
         //  instructions.dismissed_word_indices    = {0, 1, 2,4,5,6};
         instructions.method =
             Vocinity::Homophonic_Alternative_Composer::Matching_Method::Phoneme_Transcription;

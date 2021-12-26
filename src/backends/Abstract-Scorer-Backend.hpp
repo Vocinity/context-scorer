@@ -3,15 +3,15 @@
 
 #include "../Context-Scorer.hpp"
 
-class Vocinity::Context_Scorer::Scorer_Backend
+class Vocinity::Context_Scorer::Abstract_Scorer_Backend
 {
   public:
     struct GPT_Configuration
     {
-        ushort hidden_size         = 768; //n_embd
-        ushort num_attention_heads = 12;  // n_head
-        ushort num_layers          = 6;   //n_layer (hidden_layers)
-        ushort sequence_length=1024; // n_ctx
+        ushort hidden_size         = 768;  //n_embd
+        ushort num_attention_heads = 12;   // n_head
+        ushort num_layers          = 6;    //n_layer (hidden_layers)
+        ushort sequence_length     = 1024; // n_ctx
     };
 
     struct Inference_Output
@@ -27,7 +27,7 @@ class Vocinity::Context_Scorer::Scorer_Backend
     {
         if(type == Vocinity::Context_Scorer::GPT_TYPE::DistilGPT2)
         {
-            return GPT_Configuration{768, 12, 6,1024};
+            return GPT_Configuration{768, 12, 6, 1024};
         }
         return GPT_Configuration();
     }
@@ -47,13 +47,20 @@ class Vocinity::Context_Scorer::Scorer_Backend
         return torch::kCPU;
     }
 
-    c10::ScalarType get_input_int_range() const
+    virtual c10::ScalarType get_input_int_range() const
     {
         return _input_int_range;
     }
 
+    virtual torch::Tensor get_initial_single_batch_past() const
+    {
+        return _past;
+    }
+
+    virtual c10::ScalarType get_torch_precision() const = 0;
+
   public:
-    virtual ~Scorer_Backend() = default;
+    virtual ~Abstract_Scorer_Backend() = default;
 
   public:
     virtual Inference_Output score(const at::Tensor& input_ids,
@@ -70,7 +77,9 @@ class Vocinity::Context_Scorer::Scorer_Backend
   protected:
     Vocinity::Context_Scorer::Inference_Backend _device =
         Vocinity::Context_Scorer::Inference_Backend::CPU;
-    const c10::ScalarType _input_int_range=torch::kInt64;
+    const c10::ScalarType _input_int_range = torch::kInt64;
+    torch::Tensor _past;
+    Vocinity::Context_Scorer::Precision _precision;
 };
 
 
