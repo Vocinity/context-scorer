@@ -23,22 +23,6 @@ LIGHTSEQ_AVAILABLE{
     include(protobuf.pri)
 }
 
-TENSOR_RT_AVAILABLE{
-    INCLUDEPATH+=/usr/local/trt/include
-    LIBS+= -L/usr/local/trt/lib -lnvinfer -lnvinfer_plugin
-}
-
-ONNX_AVAILABLE{
-    INCLUDEPATH+=/opt/local/include/onnx
-    LIBS+= -L/opt/local/lib/onnx -lonnxruntime -lonnxruntime_providers_shared
-    CUDA_AVAILABLE{
-        LIBS+= -L/opt/local/lib/onnx -lonnxruntime_providers_cuda
-        TENSOR_RT_AVAILABLE{
-            LIBS+= -L/opt/local/lib/onnx -lonnxruntime_providers_tensorrt
-        }
-    }
-}
-
 THIRD_PARTY_SRC=$$PWD/../3rdparty/
 CUDA_AVAILABLE{
     LIGHTSEQ_AVAILABLE{

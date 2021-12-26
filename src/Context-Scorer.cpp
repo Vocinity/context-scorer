@@ -5,7 +5,7 @@
 #include "backends/Torch-Scorer-Backend.hpp"
 
 Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_model_path,
-                                         const Model_Family& family,
+                                         const GPT_TYPE type,
                                          const Tokenizer_Configuration& encoding_conf,
                                          const Precision precision
 #ifdef CUDA_AVAILABLE
@@ -14,6 +14,7 @@ Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_mod
 #endif
                                          )
     : _precision(precision)
+    , _type(type)
 #ifdef CUDA_AVAILABLE
     , _device(device == Inference_Backend::CUDA ? torch::kCUDA : torch::kCPU)
 #endif
@@ -24,14 +25,13 @@ Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_mod
                                              encoding_conf.pad_token_str,
                                              encoding_conf.unk_token_str,
                                              encoding_conf.mask_token_str))
-    , _family(family)
 {
 #ifdef CUDA_AVAILABLE
     if(device == Inference_Backend::CUDA)
     {
 #	ifdef ONNX_AVAILABLE
         _inference_backend = std::make_unique<Scorer_ONNX_Backend>(
-            scorer_model_path, precision, _tokenizer->get_vocab_size(), device);
+            scorer_model_path, precision, _tokenizer->get_vocab_size(), type, device);
 #	else
 #		ifdef LIGHTSEQ_AVAILABLE
 #			ifdef CUDA_FP16_AVAILABLE
@@ -68,7 +68,7 @@ Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_mod
     {
 #ifdef ONNX_AVAILABLE
         _inference_backend = std::make_unique<Scorer_ONNX_Backend>(
-            scorer_model_path, precision, _tokenizer->get_vocab_size());
+            scorer_model_path, precision, _tokenizer->get_vocab_size(), type);
 #else
         _inference_backend = std::make_unique<Scorer_Torch_Backend>(scorer_model_path);
 #endif
@@ -97,76 +97,112 @@ Vocinity::Context_Scorer::Score
 Vocinity::Context_Scorer::score(const std::string& sentence, const bool per_char_normalized)
 {
     auto [input_ids, input_mask, actual_token_size] = encode(sentence);
+    const unsigned long actual_sequence_length      = input_ids.size(-1);
+    const ushort batch_size                         = 1;
 
-    const unsigned long sequence_length = input_ids.size(-1);
-
-    if(_family == Model_Family::Neo)
+    if(Scorer_Backend::is_neo_like_structure(_type))
     {
         input_ids  = input_ids.unsqueeze(0);
         input_mask = input_mask.unsqueeze(0);
     }
 
+    c10::ScalarType precision;
+#ifdef CUDA_FP16_AVAILABLE
+    if(_precision == Vocinity::Context_Scorer::Precision::FP16)
+    {
+        precision = torch::kFloat16;
+    }
+    else if(_precision == Vocinity::Context_Scorer::Precision::FP32)
+#endif
+    {
+        precision = torch::kFloat32;
+    }
+
+    const auto& [hidden_size, num_attention_heads, num_layers, sequence_length] =
+        Scorer_Backend::get_configuration(_type);
+    torch::Tensor past = torch::zeros(
+        {1, 2, batch_size, num_attention_heads, 0, hidden_size / num_attention_heads},
+        torch::TensorOptions().dtype(precision).device(_device));
+    for(int l = 0; l < num_layers; ++l)
+    {
+        past = torch::cat(
+            {past,
+             torch::zeros(
+                 {1, 2, batch_size, num_attention_heads, 0, hidden_size / num_attention_heads},
+                 torch::TensorOptions()
+                     .dtype(_inference_backend->get_input_int_range())
+                     .device(_device))},
+            0);
+    }
+
     std::vector<Score> total_score;
-    for(size_t i = 0; i < sequence_length; i += _inference_backend->get_stride())
+    for(size_t i = 0; i < actual_sequence_length; i += _inference_backend->get_stride())
     {
         const auto begin_loc = i;
-        const auto end_loc =
-            std::min(i + _inference_backend->get_max_sequence_length(), sequence_length);
+        const auto end_loc   = std::min(i + _inference_backend->get_max_sequence_length(),
+                                      actual_sequence_length);
         const auto current_actual_token_end_loc =
             std::min(end_loc, std::max(actual_token_size + 2 - begin_loc, (unsigned long) 0));
         const auto trg_len            = end_loc - i;
         const auto& current_input_ids = input_ids.index({Slice(begin_loc, end_loc)});
         const auto& current_att_mask  = input_mask.index({Slice(begin_loc, end_loc)});
-        auto target_ids               = current_input_ids.clone();
+        auto target_ids               = current_input_ids;
         target_ids.index_put_({Slice(None, -trg_len)},
                               _inference_backend->get_label_ignore_id());
 
-        torch::Tensor logits, loss;
+        Scorer_Backend::Inference_Output payload;
 #ifdef CUDA_AVAILABLE
         if(_device == torch::kCUDA)
         {
 #	ifdef LIGHTSEQ_AVAILABLE
-            if(_family == Model_Family::Neo)
+            if(Scorer_Backend::is_neo_like_structure(_type))
             {
                 throw std::runtime_error("GPT Neo is not implemented in LightSeq!");
             }
             else
             {
-                const auto payload = _inference_backend->score(current_input_ids.unsqueeze(0),
-                                                               current_att_mask.unsqueeze(0));
-                logits             = payload.first.flatten();
-                loss               = payload.second.flatten();
+                payload = _inference_backend->score(
+                    current_input_ids.unsqueeze(0), current_att_mask.unsqueeze(0), past);
             }
 #	else
 #		ifdef FASTER_TRANSFORMER_AVAILABLE
-            if(_family == Model_Family::Neo)
+            throw std::runtime_error("FasterTransformer inference is not implemented!");
+            if(Scorer_Backend::is_neo_like_structure(_type))
             {}
             else
             {}
 #		else
-            const auto payload =
-                _inference_backend->score(current_input_ids, current_att_mask, target_ids);
-            logits = payload.first;
-            loss   = payload.second;
+            payload = _inference_backend->score(
+                current_input_ids, current_att_mask, target_ids, past);
+#			ifdef ONNX_AVAILABLE
+            payload.logits = payload.logits.squeeze(0);
+            payload.loss   = payload.loss.squeeze(0);
+#			endif
 #		endif
 #	endif
         }
         else
 #endif
         {
-            const auto payload =
-                _inference_backend->score(current_input_ids, current_att_mask, target_ids);
-            logits = payload.first;
-            loss   = payload.second;
+            payload = _inference_backend->score(
+                current_input_ids, current_att_mask, target_ids, past);
+#ifdef ONNX_AVAILABLE
+            payload.logits = payload.logits.squeeze(0);
+            payload.loss   = payload.loss.squeeze(0);
+#endif
         }
 
-        if(not logits.numel())
+        if(not payload.logits.numel())
         {
             continue;
         }
 
+#ifdef ONNX_AVAILABLE
+        past = payload.present;
+#endif
+
         const auto log_probs = torch::nn::functional::log_softmax(
-            logits, torch::nn::functional::LogSoftmaxFuncOptions(-1));
+            payload.logits, torch::nn::functional::LogSoftmaxFuncOptions(-1));
 
         torch::Tensor target_log_probs;
 #ifdef CUDA_AVAILABLE
@@ -182,7 +218,7 @@ Vocinity::Context_Scorer::score(const std::string& sentence, const bool per_char
 #	endif
 #endif
         {
-            if(_family == Model_Family::OpenAI)
+            if(not Scorer_Backend::is_neo_like_structure(_type))
             {
                 const auto& out_mask =
                     input_ids.index({Slice(std::min(std::max((unsigned long) 1, begin_loc),
@@ -205,37 +241,33 @@ Vocinity::Context_Scorer::score(const std::string& sentence, const bool per_char
 
         Score score;
 
-        const auto neg_log_likelihood = loss * torch::Scalar(int64_t(trg_len));
-        score.negative_log_likelihood = neg_log_likelihood.item().toDouble();
-
-        const auto prod_score = target_log_probs.sum();
-        score.production      = prod_score.item().toDouble();
-
+        const auto neg_log_likelihood = payload.loss * torch::Scalar(int64_t(trg_len));
+        const auto prod_score         = target_log_probs.sum();
         const auto mean_score =
             current_actual_token_end_loc > 0
                 ? target_log_probs.logsumexp(0) - std::log(current_actual_token_end_loc - 1)
                 : torch::tensor(0);
-        score.mean = mean_score.exp().item().toDouble();
-
         const auto gmean_score = target_log_probs.mean(0);
-        score.g_mean           = gmean_score.exp().item().toDouble();
-
         const auto hmean_score = current_actual_token_end_loc > 0
                                      ? target_log_probs.neg().logsumexp(0).neg()
                                            + std::log(current_actual_token_end_loc - 1)
                                      : torch::tensor(0);
-        score.h_mean           = hmean_score.item().toDouble();
 
-        score.loss = loss.exp().item().toDouble();
-
-        score.sentence_probability = current_actual_token_end_loc > 0
-                                         ? -1
-                                               * std::exp(-1 * loss.item().toDouble()
+        score.negative_log_likelihood = neg_log_likelihood.item().toDouble();
+        score.production              = prod_score.item().toDouble();
+        score.mean                    = mean_score.exp().item().toDouble();
+        score.g_mean                  = gmean_score.exp().item().toDouble();
+        score.h_mean                  = hmean_score.item().toDouble();
+        score.loss                    = payload.loss.exp().item().toDouble();
+        score.sentence_probability    = current_actual_token_end_loc > 0
+                                            ? -1
+                                               * std::exp(-1 * payload.loss.item().toDouble()
                                                           * (current_actual_token_end_loc - 1))
-                                         : 0;
+                                            : 0;
         total_score.emplace_back(std::move(score));
 
-        if(end_loc == sequence_length)
+
+        if(end_loc == actual_sequence_length)
         {
             break;
         }
@@ -279,8 +311,8 @@ Vocinity::Context_Scorer::encode(const std::string& sentence, const bool paralle
     if(parallel)
     {
         std::transform(std::execution::unseq,
-                       tokens.begin(),
-                       tokens.end(),
+                       tokens.cbegin(),
+                       tokens.cend(),
                        ids.begin() + 1,
                        [this](const auto& token) -> int64_t
                        { return _tokenizer->convert_token_to_id(token); }); // moves
@@ -323,22 +355,27 @@ Vocinity::Context_Scorer::encode(const std::string& sentence, const bool paralle
 #	ifdef LIGHTSEQ_AVAILABLE
     if(_device == torch::kCUDA)
     {
-        full_sequence =
-            torch::full(full_sequence_size, 0, torch::TensorOptions().dtype(torch::kInt64));
+        full_sequence = torch::full(
+            full_sequence_size,
+            0,
+            torch::TensorOptions().dtype(_inference_backend->get_input_int_range()));
     }
     else
 #	endif
 #endif
     {
-        full_sequence = torch::full(full_sequence_size,
-                                    _tokenizer->get_pad_token_id(),
-                                    torch::TensorOptions().dtype(torch::kInt64));
+        full_sequence = torch::full(
+            full_sequence_size,
+            _tokenizer->get_pad_token_id(),
+            torch::TensorOptions().dtype(_inference_backend->get_input_int_range()));
     }
 
     full_sequence.index_put_({Slice(None, padded_token_size)}, tokens_padded);
 
 
-    auto input_mask = torch::zeros(full_sequence_size);
+    auto input_mask =
+        torch::zeros(full_sequence_size,
+                     torch::TensorOptions().dtype(_inference_backend->get_input_int_range()));
     input_mask.index_put_({Slice(None, padded_token_size)}, 1);
 
     return {full_sequence.to(_device), input_mask.to(_device), actual_token_size};

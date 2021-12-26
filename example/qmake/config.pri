@@ -160,6 +160,7 @@ unix{
             #enableExtension(FASTER_TRANSFORMER)
             enableExtension(ONNX)
             enableExtension(TENSOR_RT)
+            enableExtension(CUDNN)
         }
     }
 

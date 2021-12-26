@@ -213,9 +213,10 @@ class Scorer_FasterTransformer_Backend : public Vocinity::Context_Scorer::Scorer
     }
 
   public:
-    std::pair<torch::Tensor, torch::Tensor> score(const at::Tensor& input_ids,
+    Inference_Output score(const at::Tensor& input_ids,
                                                   const at::Tensor& att_mask,
-                                                  const torch::Tensor& labels) override
+                                                  const torch::Tensor& labels,
+                                                  const torch::Tensor& past) override
     {
         const Batch_Size batch_size       = input_ids.size(0);
         const Batch_Seq_Len batch_seq_len = input_ids.size(1);
@@ -288,7 +289,7 @@ class Scorer_FasterTransformer_Backend : public Vocinity::Context_Scorer::Scorer
             {max_output_seq_len, _configuration.request_batch_size, _configuration.beam_width},
             torch::TensorOptions().device(torch::kCUDA).dtype(torch_precision));
 
-        return {generated, generated};
+        return {generated, generated,torch::Tensor()};
     }
 
     virtual ushort get_max_sequence_length() override

@@ -39,9 +39,10 @@ class Scorer_Torch_Backend : public Vocinity::Context_Scorer::Scorer_Backend
     ~Scorer_Torch_Backend() override = default;
 
   public:
-    std::pair<torch::Tensor, torch::Tensor> score(const at::Tensor& input_ids,
+   Inference_Output score(const at::Tensor& input_ids,
                                                   const at::Tensor& att_mask,
-                                                  const torch::Tensor& labels) override
+                                                  const torch::Tensor& labels,
+                                                  const torch::Tensor& past) override
     {
         const std::lock_guard<std::mutex> lock(instanceMutex);
 
@@ -60,12 +61,12 @@ class Scorer_Torch_Backend : public Vocinity::Context_Scorer::Scorer_Backend
         const auto& shift_labels = labels.index({"...", Slice(1, None)}).contiguous();
         const auto loss          = torch::nn::functional::cross_entropy(
             shift_logits.view({-1, shift_logits.size(-1)}), shift_labels.view({-1}));
-        return {logits, loss};
+        return {loss,logits,past};
     }
 
     virtual ushort get_max_sequence_length() override
     {
-        return 1024;
+       return std::max(_max_input_sequence_length/16,(int64_t) 64);
     }
 
     virtual int64_t get_label_ignore_id() override
@@ -75,13 +76,14 @@ class Scorer_Torch_Backend : public Vocinity::Context_Scorer::Scorer_Backend
 
     virtual int64_t get_stride() override
     {
-        return 512;
+        return get_max_sequence_length() / 2;
     }
 
   private:
     torch::jit::script::Module _scorer_model;
     std::mutex instanceMutex;
     c10::InferenceMode guard{true};
+    static inline constexpr int64_t _max_input_sequence_length=1024;
 };
 
 #endif

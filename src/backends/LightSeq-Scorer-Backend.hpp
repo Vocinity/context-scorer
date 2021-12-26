@@ -68,9 +68,10 @@ class Scorer_LightSeq_Backend : public Vocinity::Context_Scorer::Scorer_Backend
     ~Scorer_LightSeq_Backend() override = default;
 
   public:
-    std::pair<torch::Tensor, torch::Tensor> score(const at::Tensor& input_ids,
+    Inference_Output score(const at::Tensor& input_ids,
                                                   const at::Tensor& att_mask,
-                                                  const torch::Tensor& labels) override
+                                                  const torch::Tensor& labels,
+                                                  const torch::Tensor& past) override
     {
         const Batch_Size batch_size       = input_ids.size(0);
         const Batch_Seq_Len batch_seq_len = input_ids.size(1);
@@ -113,7 +114,7 @@ class Scorer_LightSeq_Backend : public Vocinity::Context_Scorer::Scorer_Backend
         lightseq::cuda::print_time_duration(start, "one infer time", _stream);
         lightseq::cuda::print_vec(_loss.data(), "ppl", batch_size);
 #		endif
-        return {logits, losses};
+        return {losses,logits,torch::Tensor()};
     }
 
     virtual ushort get_max_sequence_length() override

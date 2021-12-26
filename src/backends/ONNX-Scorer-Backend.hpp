@@ -11,10 +11,10 @@
 #		endif
 #	endif
 #	include <torch/csrc/api/include/torch/nn/functional/loss.h>
-// python -m onnxruntime.transformers.convert_to_onnx -m distilgpt2 --model_class GPT2LMHeadModel --output distilgpt2.onnx -p fp32 --use_gpu #--optimize_onnx
-// you dont need past hidden states for perplexity?
-// python -m onnxruntime.transformers.optimizer --model-type gpt2 --input distilgpt2_past.onnx --output distilgpt2_past_optimized.onnx --num_heads 12 --hidden_size 768 --opt_level 99 --only_onnxruntime --verbose --input_int32 #  --float16
-// python -m onnxruntime.tools.symbolic_shape_infer --input ./distilgpt2_past.onnx --output ./distilgpt2_past-shaped.onnx --verbose 3
+// python -m onnxruntime.transformers.convert_to_onnx -m distilgpt2 --model_class GPT2LMHeadModel --output distilgpt2.onnx -p fp32 --use_gpu --verbose #--optimize_onnx // actually you dont need past hidden states for perplexity but does not matter
+// python -m onnxruntime.transformers.optimizer --model_type gpt2 --input distilgpt2.onnx --output distilgpt2_optimized.onnx --num_heads 12 --hidden_size 768 --opt_level 1 --only_onnxruntime --verbose #--input_int32 --float16
+//-------just know how to, dont use below-------
+// python -m onnxruntime.tools.symbolic_shape_infer --input ./distilgpt2_optimized.onnx --output ./distilgpt2_optimized-shaped.onnx --verbose 3 --auto_merge
 class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
 {
     using Batch_Size    = int;
@@ -23,23 +23,27 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
   public:
     Scorer_ONNX_Backend(const std::filesystem::__cxx11::path& scorer_model_path,
                         const Vocinity::Context_Scorer::Precision precision,
-                        const unsigned long vocab_size      = 50257
+                        const unsigned long vocab_size = 50257,
+                        const Vocinity::Context_Scorer::GPT_TYPE type =
+                            Vocinity::Context_Scorer::GPT_TYPE::DistilGPT2
 #	ifdef CUDA_AVAILABLE
                         ,
                         const Vocinity::Context_Scorer::Inference_Backend device =
                             Vocinity::Context_Scorer::Inference_Backend::CPU
 #	endif
                         )
-        : _precision(precision), _vocab_size(vocab_size)
-#	ifdef CUDA_AVAILABLE
-        , _device(device)
-#	endif
+        : _precision(precision)
+        , _vocab_size(vocab_size)
+        , _type(type)
     {
         if(scorer_model_path.empty())
         {
             throw std::runtime_error("scorer_model_path can not be empty");
         }
 
+#	ifdef CUDA_AVAILABLE
+        _device = device;
+#	endif
         const auto providers = Ort::GetAvailableProviders();
 
         std::cout << "Available providers: ";
@@ -50,23 +54,17 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
 
         Ort::SessionOptions session_options;
         session_options.SetIntraOpNumThreads(1);
-        session_options.SetInterOpNumThreads(2);
+        session_options.SetInterOpNumThreads(1);
         session_options.SetExecutionMode(ExecutionMode::ORT_PARALLEL);
+        //  session_options.SetLogSeverityLevel(0);
+        //   session_options.SetOptimizedModelFilePath(std::string(scorer_model_path.string()+"_runtime_optimized.onnx").c_str());
+        session_options.AddConfigEntry("session.set_denormal_as_zero", "1");
+        session_options.AddConfigEntry("optimization.enable_gelu_approximation", "1");
+        //  session_options.EnableProfiling("profiling.prof");
 
 #	ifdef CUDA_AVAILABLE
         if(device == Vocinity::Context_Scorer::Inference_Backend::CUDA)
         {
-            OrtCUDAProviderOptions cuda_options;
-            cuda_options.device_id = 0;
-            cuda_options.arena_extend_strategy =
-                1; // use -1 to allow ORT to choose the default, 0 = kNextPowerOfTwo, 1 = kSameAsRequested
-            cuda_options.gpu_mem_limit             = 1L * 1024 * 1024 * 1024;
-            cuda_options.cudnn_conv_algo_search    = OrtCudnnConvAlgoSearchExhaustive;
-            cuda_options.do_copy_in_default_stream = 1;
-            cuda_options.user_compute_stream       = nullptr;
-            cuda_options.default_memory_arena_cfg  = nullptr;
-            session_options.AppendExecutionProvider_CUDA(cuda_options);
-            session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
 #		ifdef TENSOR_RT_AVAILABLE
             OrtTensorRTProviderOptions trt_options;
             trt_options.device_id                    = 0;
@@ -109,18 +107,27 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
 #					endif
 #				endif
 #			endif
-
             session_options.AppendExecutionProvider_TensorRT(trt_options);
-            session_options.SetGraphOptimizationLevel(
-                GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
 #		endif
-        }
-        else
-#	endif
-        {
-            session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-        }
 
+            OrtCUDAProviderOptions cuda_options;
+            cuda_options.device_id = 0;
+            cuda_options.arena_extend_strategy =
+                1; // use -1 to allow ORT to choose the default, 0 = kNextPowerOfTwo, 1 = kSameAsRequested
+            cuda_options.gpu_mem_limit = 1L * 1024 * 1024 * 1024;
+            std::cout << cuda_options.gpu_mem_limit
+                      << " bytes of CuDNN workspace will be allocated." << std::endl;
+            cuda_options.cudnn_conv_algo_search    = OrtCudnnConvAlgoSearchExhaustive;
+            cuda_options.do_copy_in_default_stream = 1;
+            cuda_options.has_user_compute_stream   = 0;
+            cuda_options.user_compute_stream       = nullptr;
+            cuda_options.default_memory_arena_cfg  = nullptr;
+            session_options.AppendExecutionProvider_CUDA(cuda_options);
+        }
+#	endif
+        session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+
+        std::cout << scorer_model_path.c_str() << std::endl;
         _session =
             std::make_unique<Ort::Session>(env, scorer_model_path.c_str(), session_options);
         _binding = std::make_unique<Ort::IoBinding>(*_session);
@@ -129,7 +136,7 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
         if(_device == Vocinity::Context_Scorer::Inference_Backend::CUDA)
         {
             _cuda_memory_info = (Ort::MemoryInfo(
-                "Cuda", OrtAllocatorType::OrtArenaAllocator, 0, OrtMemTypeDefault));
+                "Cuda", OrtAllocatorType::OrtDeviceAllocator, 0, OrtMemTypeDefault));
         }
         else
 #	endif
@@ -138,7 +145,7 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
                                                           OrtMemTypeDefault);
         }
 
-#	ifdef QT_DEBUG
+        //#	ifdef QT_DEBUG
         std::cout << "Number of model inputs: " << _session->GetInputCount() << "\n";
         std::cout << "Number of model outputs: " << _session->GetOutputCount() << "\n";
 
@@ -149,19 +156,19 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
         {
             // print input node names
             char* input_name = _session->GetInputName(i, _default_allocator);
-            std::cout << "Input " << i << " : "
+            std::cout << "Input" << i << " : "
                       << " name= " << input_name << std::endl;
             input_node_names[i] = input_name;
             // print input node types
             Ort::TypeInfo type_info        = _session->GetInputTypeInfo(i);
             auto tensor_info               = type_info.GetTensorTypeAndShapeInfo();
             ONNXTensorElementDataType type = tensor_info.GetElementType();
-            std::cout << "Input " << i << " : "
+            std::cout << "Input" << i << " : "
                       << " type= " << type << std::endl;
 
             // print input shapes/dims
             input_node_dims = tensor_info.GetShape();
-            std::cout << "Input " << i << " : num_dims= " << input_node_dims.size()
+            std::cout << "Input" << i << " : num_dims= " << input_node_dims.size()
                       << std::endl;
             for(int j = 0; j < input_node_dims.size(); j++)
             {
@@ -180,19 +187,19 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
         {
             // print output node names
             char* output_name = _session->GetOutputName(i, _default_allocator);
-            std::cout << "Output " << i << " : "
+            std::cout << "Output" << i << " : "
                       << " name= " << output_name << std::endl;
             output_node_names[i] = output_name;
             // print input node types
             Ort::TypeInfo type_info        = _session->GetOutputTypeInfo(i);
             auto tensor_info               = type_info.GetTensorTypeAndShapeInfo();
             ONNXTensorElementDataType type = tensor_info.GetElementType();
-            std::cout << "Output " << i << " : "
+            std::cout << "Output" << i << " : "
                       << " type= " << type << std::endl;
 
             // print input shapes/dims
             output_node_dims = tensor_info.GetShape();
-            std::cout << "Output " << i << " : num_dims= " << output_node_dims.size()
+            std::cout << "Output" << i << " : num_dims= " << output_node_dims.size()
                       << std::endl;
             for(int j = 0; j < output_node_dims.size(); j++)
             {
@@ -203,7 +210,7 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
             }
             _default_allocator.Free(output_name);
         }
-#	endif
+        //#	endif
         std::cout << "Everything is okay in initialization of " << scorer_model_path
                   << std::endl;
     }
@@ -214,12 +221,43 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
     {}
 
   public:
-    std::pair<torch::Tensor, torch::Tensor> score(const at::Tensor& input_ids,
-                                                  const at::Tensor& att_mask,
-                                                  const torch::Tensor& labels) override
+    Inference_Output score(const at::Tensor& input_ids_,
+                           const at::Tensor& att_mask_,
+                           const torch::Tensor& labels_,
+                           const torch::Tensor& past) override
     {
-        const Batch_Size batch_size         = input_ids.size(0);
-        const Batch_Seq_Len sequence_length = input_ids.size(1);
+        const auto input_ids = input_ids_.unsqueeze(0);
+        auto att_mask        = att_mask_.unsqueeze(0);
+        const auto labels    = labels_.unsqueeze(0);
+
+        const Batch_Size batch_size                = input_ids.size(0);
+        const Batch_Seq_Len actual_sequence_length = input_ids.size(-1);
+
+        const auto& [hidden_size, num_attention_heads, num_layers, _] =
+            Scorer_Backend::get_configuration(_type);
+
+        const torch::Tensor position_ids =
+            (att_mask.cumsum(-1) - 1).masked_fill(att_mask == 0, 1);
+
+#	ifdef CUDA_AVAILABLE
+        auto& memory_info_in_use = _device == Vocinity::Context_Scorer::Inference_Backend::CUDA
+                                       ? _cuda_memory_info
+                                       : _cpu_memory_info;
+#	else
+        auto& memory_info_in_use = _cpu_memory_info;
+#	endif
+
+        _binding->ClearBoundInputs();
+
+        create_out_buffers(batch_size, actual_sequence_length);
+
+        const Ort::Value input_ids_bound =
+            Ort::Value::CreateTensor(memory_info_in_use,
+                                     reinterpret_cast<int64_t*>(input_ids.data_ptr()),
+                                     batch_size * actual_sequence_length,
+                                     input_ids.sizes().data(),
+                                     input_ids.sizes().size());
+        _binding->BindInput("input_ids", input_ids_bound);
 
         c10::ScalarType precision;
 #	ifdef CUDA_FP16_AVAILABLE
@@ -232,58 +270,54 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
         {
             precision = torch::kFloat32;
         }
-
-        torch::Tensor logits =
-            torch::zeros({batch_size, sequence_length, _vocab_size}, precision);
-
-#	ifdef CUDA_AVAILABLE
-        auto& memory_info_in_use = _device == Vocinity::Context_Scorer::Inference_Backend::CUDA
-                                       ? _cuda_memory_info
-                                       : _cpu_memory_info;
-#	else
-        auto& memory_info_in_use = _cpu_memory_info;
-#	endif
-        Ort::Value input_ids_bound =
+        att_mask = att_mask.to(precision);
+        const Ort::Value att_mask_bound =
             Ort::Value::CreateTensor(memory_info_in_use,
-                                     reinterpret_cast<int*>(input_ids.data_ptr()),
-                                     batch_size * sequence_length,
-                                     input_ids.sizes().data(),
-                                     input_ids.sizes().size());
-        Ort::Value att_mask_bound =
-            Ort::Value::CreateTensor(memory_info_in_use,
-                                     reinterpret_cast<int*>(att_mask.data_ptr()),
-                                     batch_size * sequence_length,
+                                     reinterpret_cast<float*>(att_mask.data_ptr()),
+                                     batch_size * actual_sequence_length,
                                      att_mask.sizes().data(),
                                      att_mask.sizes().size());
-        Ort::Value logits_bound =
-            Ort::Value::CreateTensor(memory_info_in_use,
-                                     reinterpret_cast<float*>(logits.data_ptr()),
-                                     batch_size * sequence_length * _vocab_size,
-                                     logits.sizes().data(),
-                                     logits.sizes().size());
-
-        _binding->ClearBoundInputs();
-        _binding->ClearBoundOutputs();
-
-        _binding->BindInput("input_ids", input_ids_bound);
         _binding->BindInput("attention_mask", att_mask_bound);
-        _binding->BindOutput("logits", logits_bound);
 
-        _binding->SynchronizeInputs();
+
+        const Ort::Value position_ids_bound =
+            Ort::Value::CreateTensor(memory_info_in_use,
+                                     reinterpret_cast<int64_t*>(position_ids.data_ptr()),
+                                     batch_size * actual_sequence_length,
+                                     position_ids.sizes().data(),
+                                     position_ids.sizes().size());
+        _binding->BindInput("position_ids", position_ids_bound);
+
+        const uint past_elem_length =
+            2 * batch_size * num_attention_heads * 1 * (hidden_size / num_attention_heads);
+        for(int l = 0; l < num_layers; ++l)
+        {
+            const Ort::Value past_l_bound =
+                Ort::Value::CreateTensor(memory_info_in_use,
+                                         reinterpret_cast<float*>(past[l].data_ptr()),
+                                         past_elem_length,
+                                         past[l].sizes().data(),
+                                         past[l].sizes().size());
+            _binding->BindInput((std::string("past_") + std::to_string(l)).c_str(),
+                                past_l_bound);
+        }
+
+        //  _binding->SynchronizeInputs();
         _session->Run(Ort::RunOptions(), *_binding);
-        _binding->SynchronizeOutputs();
+        //  _binding->SynchronizeOutputs();
 
         const auto& shift_logits =
             logits.index({"...", Slice(None, -1), Slice()}).contiguous();
         const auto& shift_labels = labels.index({"...", Slice(1, None)}).contiguous();
         const auto loss          = torch::nn::functional::cross_entropy(
             shift_logits.view({-1, shift_logits.size(-1)}), shift_labels.view({-1}));
-        return {logits, loss};
+
+        return {loss, logits, present_states};
     }
 
     virtual ushort get_max_sequence_length() override
     {
-        return _max_input_sequence_length;
+        return std::max(_max_input_sequence_length / 16, 64);
     }
 
     virtual int64_t get_label_ignore_id() override
@@ -297,18 +331,94 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Scorer_Backend
     }
 
   private:
+    void create_out_buffers(const Batch_Size batch_size       = 1,
+                            const Batch_Seq_Len batch_seq_len = 0)
+    {
+        if(_batch_size == batch_size and batch_seq_len == _batch_seq_len)
+        {
+            return;
+        }
+        _batch_size    = batch_size;
+        _batch_seq_len = batch_seq_len;
+
+        _binding->ClearBoundOutputs();
+
+#	ifdef CUDA_AVAILABLE
+        auto& memory_info_in_use = _device == Vocinity::Context_Scorer::Inference_Backend::CUDA
+                                       ? _cuda_memory_info
+                                       : _cpu_memory_info;
+#	else
+        auto& memory_info_in_use = _cpu_memory_info;
+#	endif
+
+        c10::ScalarType precision;
+#	ifdef CUDA_FP16_AVAILABLE
+        if(_precision == Vocinity::Context_Scorer::Precision::FP16)
+        {
+            precision = torch::kFloat16;
+        }
+        else if(_precision == Vocinity::Context_Scorer::Precision::FP32)
+#	endif
+        {
+            precision = torch::kFloat32;
+        }
+
+        const auto& [hidden_size, num_attention_heads, num_layers, _] =
+            Scorer_Backend::get_configuration(_type);
+
+        logits = torch::zeros(
+            {_batch_size, _batch_seq_len, _vocab_size},
+            torch::TensorOptions().dtype(precision).device(get_torch_device(_device)));
+        present_states = torch::zeros(
+            {num_layers,
+             2,
+             _batch_size,
+             num_attention_heads,
+             _batch_seq_len,
+             hidden_size / num_attention_heads},
+            torch::TensorOptions().dtype(precision).device(get_torch_device(_device)));
+        const uint present_elem_length = 2 * _batch_size * num_attention_heads * _batch_seq_len
+                                         * (hidden_size / num_attention_heads);
+
+        for(int l = 0; l < num_layers; ++l)
+        {
+            const Ort::Value present_l_bound = Ort::Value::CreateTensor(
+                memory_info_in_use,
+                reinterpret_cast<float*>(present_states[l].data_ptr()),
+                present_elem_length,
+                present_states[l].sizes().data(),
+                present_states[l].sizes().size());
+            _binding->BindOutput((std::string("present_") + std::to_string(l)).c_str(),
+                                 present_l_bound);
+        }
+
+        Ort::Value logits_bound =
+            Ort::Value::CreateTensor(memory_info_in_use,
+                                     reinterpret_cast<float*>(logits.data_ptr()),
+                                     _batch_size * _batch_seq_len * _vocab_size,
+                                     logits.sizes().data(),
+                                     logits.sizes().size());
+
+        _binding->BindOutput("logits", logits_bound);
+    }
+
+
+  private:
+    const Vocinity::Context_Scorer::GPT_TYPE _type;
     std::unique_ptr<Ort::IoBinding> _binding;
 #	ifdef CUDA_AVAILABLE
     Ort::MemoryInfo _cuda_memory_info{nullptr};
-    Vocinity::Context_Scorer::Inference_Backend _device;
 #	endif
     Ort::MemoryInfo _cpu_memory_info{nullptr};
     static inline Ort::Env env;
     std::unique_ptr<Ort::Session> _session;
     Ort::AllocatorWithDefaultOptions _default_allocator;
-    ushort _max_input_sequence_length = 1024;
+    static inline constexpr ushort _max_input_sequence_length = 1024;
     Vocinity::Context_Scorer::Precision _precision;
-    unsigned long _vocab_size=50257;
+    unsigned long _vocab_size = 50257;
+    torch::Tensor logits, present_states;
+    Batch_Size _batch_size       = 0;
+    Batch_Seq_Len _batch_seq_len = 0;
 };
 #endif
 #endif
