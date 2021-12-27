@@ -30,6 +30,7 @@ main(int argc, char* argv[])
             std::string(argv[4]) == "--cuda"
                 ? Vocinity::Context_Scorer::Inference_Backend::CUDA
                 : Vocinity::Context_Scorer::Inference_Backend::CPU};
+            scorer.flush_cuda_tensor_cache_before_inference();
 
         std::cout << "Instance " << instance_index << " " << argv[1]
                   << " model initialization took: "

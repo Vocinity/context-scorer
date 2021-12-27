@@ -132,8 +132,8 @@ namespace Vocinity
          *
          */
         Score score_context(const std::string& context,
-                            const bool per_char_normalized = true,
-                            const bool consider_intra_batching      = false);
+                            const bool per_char_normalized     = true,
+                            const bool consider_intra_batching = false);
         /**
          * @brief is batching perplexity computation of multiple separate contexts.
          */
@@ -143,6 +143,14 @@ namespace Vocinity
       public:
         ushort get_max_sequence_length() const;
 
+      public:
+#ifdef CUDA_AVAILABLE
+        inline void flush_cuda_tensor_cache_before_inference(const bool flush = true)
+        {
+            _flush_torch_cuda_cache = flush;
+        }
+#endif
+
       private:
         Encoded_Sequence encode(const std::string& sentence, const bool parallel = true);
         Score score_short_context(const Encoded_Sequence& encoding,
@@ -151,6 +159,7 @@ namespace Vocinity
                                  const bool per_char_normalized = false);
 
       private:
+        bool _flush_torch_cuda_cache = false;
         const GPT_TYPE _type;
         std::unique_ptr<Abstract_Scorer_Backend> _inference_backend;
         const Precision _precision;

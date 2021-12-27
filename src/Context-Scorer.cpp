@@ -75,13 +75,12 @@ Vocinity::Context_Scorer::score_context(const std::string& sentence,
                                         const bool per_char_normalized,
                                         const bool intra_batching)
 {
-    const auto& encoding =
-        encode(sentence
+    const auto& encoding = encode(sentence
 #ifndef CPP17_AVAILABLE
-               ,
-               sentence.size() >= std::thread::hardware_concurrency() * 1024
+                                  ,
+                                  sentence.size() >= std::thread::hardware_concurrency() * 1024
 #endif
-        );
+    );
     if(intra_batching
        and (encoding.input_ids.size(-1) > _inference_backend->get_max_sequence_length()))
     {
@@ -123,6 +122,13 @@ Vocinity::Context_Scorer::score_short_context(
             current_att_mask  = current_att_mask.unsqueeze(0);
             target_ids        = target_ids.unsqueeze(0);
         }
+
+#ifdef CUDA_AVAILABLE
+        if(_flush_torch_cuda_cache)
+        {
+            c10::cuda::CUDACachingAllocator::emptyCache();
+        }
+#endif
 
         Abstract_Scorer_Backend::Inference_Output payload =
             _inference_backend->score(current_input_ids, current_att_mask, target_ids, past);
@@ -314,6 +320,13 @@ Vocinity::Context_Scorer::score_long_context(
         }
     }
 
+#ifdef CUDA_AVAILABLE
+    if(_flush_torch_cuda_cache)
+    {
+        c10::cuda::CUDACachingAllocator::emptyCache();
+    }
+#endif
+
     std::vector<Score> total_score;
     const auto batch_payload = _inference_backend->score(
         batched_input_ids, batched_att_masks, batched_labels, batched_pasts);
@@ -453,11 +466,9 @@ Vocinity::Context_Scorer::score_contexts(const std::vector<std::string>& sentenc
                                                     {0, stack.size(-1) - tensor.size(-1)})
                                                     .mode(torch::kConstant)
                                                     .value(pad_token_id));
-
             }
             else
             {
-
                 stack = torch ::nn::functional::pad(stack,
                                                     torch::nn::functional::PadFuncOptions(
                                                         {0, tensor.size(-1) - stack.size(-1)})
@@ -471,7 +482,7 @@ Vocinity::Context_Scorer::score_contexts(const std::vector<std::string>& sentenc
     torch::Tensor batched_input_ids, batched_att_masks, batched_labels, batched_pasts;
     for(uint sentence_order = 0; sentence_order < sentences.size(); ++sentence_order)
     {
-        const auto& sentence = sentences.at(sentence_order);
+        const auto& sentence                                  = sentences.at(sentence_order);
         const auto [input_ids, input_mask, actual_token_size] = encode(sentence);
         const unsigned long sequence_length                   = input_ids.size(-1);
 
@@ -496,9 +507,15 @@ Vocinity::Context_Scorer::score_contexts(const std::vector<std::string>& sentenc
             batched_pasts     = past;
         }
 
-        batch_metadata.push_back(
-            {actual_token_size + 2, input_ids, input_mask});
+        batch_metadata.push_back({actual_token_size + 2, input_ids, input_mask});
     }
+
+#ifdef CUDA_AVAILABLE
+    if(_flush_torch_cuda_cache)
+    {
+        c10::cuda::CUDACachingAllocator::emptyCache();
+    }
+#endif
 
     std::vector<Score> scores;
     const auto batch_payload = _inference_backend->score(
