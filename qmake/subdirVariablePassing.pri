@@ -21,6 +21,7 @@ message("Current config parameters are: $$CONFIG")
     message("LTO_OFF - using this switch is disabling lto usage.")
     message("GCC_CHECK_OFF - disable querying gcc version for supported c++ standard if you have a weird configuration that old gcc is overriding the new one.")
     message("- - - - - - - - - - - - - - - HW Acceleration - - - - - - - - - - - - - - - ")
+    message("ONNX_OFF - Otherwise ONNX runtime expected to be found in DEPS_ROOT/include/onnx and DEPS_ROOT/lib/onnx")
     message("CUDA_OFF - otherwise CUDA is on if either /usr/local/cuda/version.txt or /usr/local/cuda/version.json is found.")
     message("USE_TORCH_CUDA_RT - this option makes use of libcudart in libtorch library path instead of the one that comes with CUDA SDK")
     message("CL_OFF - OpenCL has dependencies, information will be printed about them.")
@@ -70,6 +71,7 @@ GCC8\
 GCC9\
 GCC10\
 GCC11\
+ONNX_OFF\
 PYSTRING_OFF\
 LEVENSHTEIN_SSE_OFF\
 DOUBLE_METAPHONE_OFF\

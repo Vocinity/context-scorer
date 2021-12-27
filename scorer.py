@@ -4,6 +4,8 @@ import torch
 import numpy as np
 from transformers.models.auto import AutoModelForCausalLM, AutoTokenizer
 import inspect, time, math, json
+import onnxruntime
+
 
 np.set_printoptions(threshold=np.inf)
 
@@ -11,13 +13,16 @@ working_directory=os.getcwd()
 
 # for torchscript tracing;
 #replace GPT2LMHeadModel.forward arguments order in
-# venv/lib/python3.8/site-packages/transformers/models/gpt2/modelling_gpt2.py
+# venv/lib/python3.8/site-packages/transformers/models/gpt2/modelling_gpt2.py#924
 #as:
 #
 #def forward(
 #        self,
 #        input_ids=None,
-#        attention_mask=None,...
+#        attention_mask=None,
+#        position_ids=None,
+#        past_key_values=None,
+#        labels=None,...
 
 def process_labels(labels, logits):
     loss = None
@@ -123,9 +128,14 @@ def export_torchscript(model,input,quantize=True,trt=False,onnx=False,device="cp
             model = trtorch.compile(model, compile_settings)
     return model
 
-def nemo_gpt2_test(sentence, lm_model_file,device = "cpu",trace_model = True,support_att_mask=None):
+def nemo_gpt2_test(sentence, lm_model_file,device = "cuda",trace_model = False,support_att_mask=None,
+                   hf_inference=False,warmup=False,onnx_runtime=True):
+    print(onnx_runtime)
+    hidden_size=768 #n_embd
+    num_attention_heads=12#n_head
+    num_layer=6#n_layer (hidden layers)
     label_ignore_id = -100
-    if not trace_model:
+    if not trace_model and not hf_inference and not onnx_runtime:
         support_att_mask = True if support_att_mask is None else support_att_mask
         max_seq_length = 1024
         pad_id=50256
@@ -134,34 +144,48 @@ def nemo_gpt2_test(sentence, lm_model_file,device = "cpu",trace_model = True,sup
         model_tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=lm_model_file)
         model.eval()
     else:
-        model = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=lm_model_file, is_decoder=True,
-                                                     torchscript=True) \
-            .to(device)
-        model.eval()
-        if "attention_mask" in inspect.getfullargspec(model.forward).args:
-            support_att_mask = True
+        if onnx_runtime:
+            onnx_model_path = "/opt/cloud/projects/vocinity/models/context-scorer/openai/distilgpt2-hf-onnx/distilgpt2_cuda_o1_int64_fp32.onnx"
+            session_options=onnxruntime.SessionOptions()
+            onnxruntime.set_default_logger_severity(3)
+            session = onnxruntime.InferenceSession(onnx_model_path,sess_options=session_options,providers=['TensorrtExecutionProvider', 'CUDAExecutionProvider', 'CPUExecutionProvider'])
+            support_att_mask=True
         else:
-            support_att_mask = False
+            model = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=lm_model_file, is_decoder=True,
+                                                         torchscript=True) \
+                .to(device)
+            model.eval()
+            if "attention_mask" in inspect.getfullargspec(model.forward).args:
+                support_att_mask = True
+            else:
+                support_att_mask = False
 
-        model_tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=lm_model_file,use_fast=True)
-        max_seq_length = model_tokenizer.max_len_single_sentence
-        if model_tokenizer.pad_token_id is not None if hasattr(model_tokenizer, "pad_token_id") else False:
-            pad_id = model_tokenizer.pad_token_id
-        elif hasattr(model_tokenizer, "eos_token_id"):
-            pad_id = model_tokenizer.eos_token_id
-        else:
-            pad_id = 0
-        vocab= model_tokenizer.get_vocab()
-        with open(working_directory+'/vocab.json', 'w', encoding='utf-8') as f:
-            json.dump(vocab, f, ensure_ascii=False, indent=4)
+    model_tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=lm_model_file,use_fast=True)
+    max_seq_length = model_tokenizer.max_len_single_sentence
+    if model_tokenizer.pad_token_id is not None if hasattr(model_tokenizer, "pad_token_id") else False:
+        pad_id = model_tokenizer.pad_token_id
+    elif hasattr(model_tokenizer, "eos_token_id"):
+        pad_id = model_tokenizer.eos_token_id
+    else:
+        pad_id = 0
+    vocab= model_tokenizer.get_vocab()
+    with open(working_directory+'/vocab.json', 'w', encoding='utf-8') as f:
+        json.dump(vocab, f, ensure_ascii=False, indent=4)
 
     input_ids, input_mask, actual_token_size = encode\
         (sentence,tokenizer=model_tokenizer,max_seq_length=max_seq_length,pad_id=pad_id)
     if torch.cuda.is_available() and device != "cpu":
         input_ids, input_mask = input_ids.to(device), input_mask.to(device)
-    if not (lm_model_file == "gpt2" or lm_model_file == "distilgpt2"):
+    if not (lm_model_file == "gpt2" or lm_model_file == "distilgpt2") or onnx_runtime:
         input_ids, input_mask = input_ids.unsqueeze(0), input_mask.unsqueeze(0)
     print(input_ids.shape[-1],"tokens will be processed")
+
+    if hf_inference or onnx_runtime:
+        batch_size = 1  # current_input_ids.size()[0]
+        past_shape = [2, batch_size, num_attention_heads, 0, hidden_size // num_attention_heads]
+        past = []
+        for _ in range(num_layer):
+            past.append(torch.empty(*past_shape).type(torch.float32).to(device))
 
     stride = int(max_seq_length / 2)
     total_score = []
@@ -175,43 +199,89 @@ def nemo_gpt2_test(sentence, lm_model_file,device = "cpu",trace_model = True,sup
         target_ids = current_input_ids.clone()
         target_ids[:-trg_len] = label_ignore_id
 
+        if hf_inference or onnx_runtime:
+            position_ids = None
+            if 1:
+                # Deduce position_ids from attention mask
+                position_ids = (current_att_mask.long().cumsum(-1) - 1)
+                position_ids.masked_fill_(current_att_mask==0, 1)
+                #position_ids.masked_fill_(position_ids < 0, 0)
+            else:
+                input_shape = current_input_ids.size()
+                if not len(past):
+                    past_length = 0
+                    past_key_values = [[None] * num_layer]
+                else:
+                    past_length = past_key_values[0][0].size(-2)
+                if position_ids is None:
+                    position_ids = torch.arange(past_length, input_shape[-1] + past_length, dtype=torch.long,
+                                                device=device)
+                    position_ids = position_ids.unsqueeze(0).view(-1, input_shape[-1])
+
         with torch.no_grad():
             if trace_model:
-                model=export_torchscript(model=model,input=(current_input_ids, current_att_mask),quantize=True,device=device)
-                torch.jit.save(model, working_directory+"/traced_" + lm_model_file + "_"+device+".pt")
+                ts_model=export_torchscript(model=model,input=(current_input_ids, current_att_mask),
+                                         quantize=True,device=device)
+                torch.jit.save(ts_model, working_directory+"/traced_" + lm_model_file + "_"+device+".pt")
                 trace_model = False
 
-            if trace_model:
-                model(input_ids=current_input_ids,
-                                    attention_mask=current_att_mask if support_att_mask else None,
-                                    labels=target_ids)
-            else:
-                model(current_input_ids, current_att_mask)
+            if warmup:
+                if hf_inference:
+                    model(input_ids=current_input_ids,
+                                        attention_mask=current_att_mask if support_att_mask else None,
+                                        labels=target_ids,position_ids=position_ids,past_key_values=past)
+                else:
+                    model(current_input_ids, current_att_mask)
 
             beginning_of_time = time.time()
-            if trace_model:
+            if hf_inference:
                 outputs_jit = model(input_ids=current_input_ids,
                                         attention_mask=current_att_mask if support_att_mask else None,
-                                        labels=target_ids)
+                                        labels=target_ids,position_ids=position_ids,past_key_values=past)
             else:
-                outputs_jit = model(current_input_ids, current_att_mask)
+                if onnx_runtime:
+                    my_att_mask=current_att_mask.to(torch.float32)
+                    ort_inputs = {'input_ids': np.ascontiguousarray(current_input_ids.cpu().numpy()),
+                                  'attention_mask': np.ascontiguousarray(my_att_mask.cpu().numpy()),
+                                  'position_ids': np.ascontiguousarray(position_ids.cpu().numpy())
+                                  }
+                    for i, past_i in enumerate(past):
+                        ort_inputs[f'past_{i}'] = np.ascontiguousarray(past_i.cpu().numpy())
+                    outputs_jit = session.run(None, ort_inputs)
+
+                else:
+                    outputs_jit = model(current_input_ids, current_att_mask)
             time_spent=time.time() - beginning_of_time
             print("timing:", time_spent,". tour")
 
-        if trace_model:
+        past = []
+        if hf_inference:
             loss = outputs_jit[0]
             logits = outputs_jit[1]
+            past = list(outputs_jit[2])
         else:
-            loss = process_labels(target_ids, outputs_jit[0])
-            logits = outputs_jit[0]
+            if onnx_runtime:
+                del session
+                logits=torch.from_numpy(outputs_jit[0].squeeze(0)).to(device)
+                loss = process_labels(target_ids,logits)
+                for l in range(num_layer):
+                    past_i = torch.from_numpy(outputs_jit[l + 1]).clone().detach()
+                    past.append(past_i.to(device))
+            else:
+                loss = process_labels(target_ids, outputs_jit[0])
+                logits = outputs_jit[0]
 
+        print(logits.shape)
         log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
+        print(log_probs.shape)
 
-        if lm_model_file == "gpt2" or lm_model_file == "distilgpt2":
-            out_mask=input_ids[min(max(1, begin_loc),current_actual_token_end_loc):current_actual_token_end_loc]
+        if (lm_model_file == "gpt2" or lm_model_file == "distilgpt2") or onnx_runtime:
+            my_inputs=input_ids.squeeze(0)
+            out_mask=my_inputs[min(max(1, begin_loc),current_actual_token_end_loc):current_actual_token_end_loc]
             target_log_probs = log_probs.gather(-1,
                                                 out_mask.unsqueeze(
                                                     -1)).squeeze(-1)
+            print(out_mask.shape)
         else:
             out_mask = input_ids[0][min(max(1, begin_loc),current_actual_token_end_loc):current_actual_token_end_loc]
             out_mask = out_mask.unsqueeze(0).unsqueeze(-1)
@@ -257,9 +327,10 @@ def nemo_gpt2_test(sentence, lm_model_file,device = "cpu",trace_model = True,sup
 
     for result in results:
         print(result)
+    print("--------------------------------------------------")
 
-#text="Click on the eye in the icon tray to pick your product of interest or say echelon-connect bike or smart rower. Smart rower."
-text="I like this package."
+text1="Click on the eye in the icon tray to pick your product of interest or say echelon-connect bike or smart rower. Smart rower."
+text2="Click on the eye in the icon tray to pick your product of interest or say echelon-connect bike or smart rower. Smartt roher."
 models = [
 #    "gpt2",
 #    "gpt2-medium",
@@ -272,6 +343,58 @@ models = [
 ]
 for model_name in models:
     if True:
-        print(text)
-        nemo_gpt2_test(sentence=text, lm_model_file=model_name)
+        print(text1)
+        nemo_gpt2_test(sentence=text1, lm_model_file=model_name,onnx_runtime=True, trace_model=False,hf_inference=False)
+        nemo_gpt2_test(sentence=text1, lm_model_file=model_name,onnx_runtime=False, trace_model=False,hf_inference=True)
+        print(text2)
+        nemo_gpt2_test(sentence=text2, lm_model_file=model_name,onnx_runtime=True, trace_model=False,hf_inference=False)
+        nemo_gpt2_test(sentence=text2, lm_model_file=model_name,onnx_runtime=False, trace_model=False,hf_inference=True)
     print("----------------")
+
+
+GPT2Config={
+  "_name_or_path": "distilgpt2",
+  "_num_labels": 1,
+  "activation_function": "gelu_new",
+  "architectures": [
+    "GPT2LMHeadModel"
+  ],
+  "attn_pdrop": 0.1,
+  "bos_token_id": 50256,
+  "embd_pdrop": 0.1,
+  "eos_token_id": 50256,
+  "gradient_checkpointing": False,
+  "id2label": {
+    "0": "LABEL_0"
+  },
+  "initializer_range": 0.02,
+  "is_decoder": True,
+  "label2id": {
+    "LABEL_0": 0
+  },
+  "layer_norm_epsilon": 1e-05,
+  "model_type": "gpt2",
+  "n_ctx": 1024,
+  "n_embd": 768,
+  "n_head": 12,
+  "n_inner": None,
+  "n_layer": 6,
+  "n_positions": 1024,
+  "resid_pdrop": 0.1,
+  "scale_attn_weights": True,
+  "summary_activation": None,
+  "summary_first_dropout": 0.1,
+  "summary_proj_to_labels": True,
+  "summary_type": "cls_index",
+  "summary_use_proj": True,
+  "task_specific_params": {
+    "text-generation": {
+      "do_sample": True,
+      "max_length": 50
+    }
+  },
+  "torchscript": True,
+  "transformers_version": "4.10.0",
+  "use_cache": True,
+  "vocab_size": 50257
+}

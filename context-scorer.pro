@@ -8,7 +8,7 @@ TEMPLATE= subdirs
 CONFIG += ordered
 
 SUBDIRS+=library
-library.file=qmake/context-scorer-library.pro
+library.file=qmake/context_scorer-library.pro
 
 #!TEST_OFF{
 #    message("Compiling tests")
@@ -19,7 +19,7 @@ library.file=qmake/context-scorer-library.pro
 !EXAMPLE_OFF{
     message("Enabled example program")
     SUBDIRS+=example
-    example.file=example/context-scorer-example.pro
+    example.file=example/context_scorer-example.pro
     example.depends+=library
 }
 

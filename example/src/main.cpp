@@ -1,5 +1,5 @@
-#include "../src/Context_Scorer.hpp"
-#include "../src/Homophonic_Alternatives.hpp"
+#include "../src/Context-Scorer.hpp"
+#include "../src/Homophonic-Alternatives.hpp"
 
 /**
  * @brief main
@@ -24,9 +24,12 @@ main(int argc, char* argv[])
         auto model_initialization_chrono = std::chrono::high_resolution_clock::now();
         Vocinity::Context_Scorer scorer{
             argv[1],
-            Vocinity::Context_Scorer::Model_Family::OpenAI,
+            Vocinity::Context_Scorer::GPT_TYPE::DistilGPT2,
             Vocinity::Context_Scorer::Tokenizer_Configuration{argv[2], argv[3]},
-            Vocinity::Context_Scorer::Inference_Backend::CUDA};
+            Vocinity::Context_Scorer::Precision::FP32,
+            std::string(argv[4]) == "--cuda"
+                ? Vocinity::Context_Scorer::Inference_Backend::CUDA
+                : Vocinity::Context_Scorer::Inference_Backend::CPU};
 
         std::cout << "Instance " << instance_index << " " << argv[1]
                   << " model initialization took: "
@@ -36,237 +39,308 @@ main(int argc, char* argv[])
                          .count()
                   << " milliseconds\n\n";
 
-        std::vector<std::pair<std::string, Vocinity::Context_Scorer::Score>> scores;
-        for(uint64_t utterance_order = 0; utterance_order < utterances.size();
-            ++utterance_order)
+        bool batching = true;
+        std::vector<std::tuple<std::string, Vocinity::Context_Scorer::Score, long>> scores;
+        if(batching)
         {
-            if(utterance_order % instance_index)
-            {
-                continue;
-            }
-            const auto& utterance = utterances.at(utterance_order);
+            scorer.score_contexts(utterances, true);
+
             auto inference_chrono = std::chrono::high_resolution_clock::now();
-            const auto& score     = scorer.score(utterance, true);
-            scores.push_back({utterance, score});
+            const auto& results   = scorer.score_contexts(utterances, true);
             const auto duration =
                 std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::high_resolution_clock::now() - inference_chrono)
                     .count();
 
-            if(verbose)
+            for(uint64_t utterance_order = 0; utterance_order < utterances.size();
+                ++utterance_order)
             {
-                std::cout << instance_index << " Inference took " << duration
-                          << " milliseconds." << std::endl;
+                if(utterance_order % instance_index)
+                {
+                    continue;
+                }
 
-                std::cout << "Instance " << instance_index << " sentence: " << utterance
-                          << std::endl;
-                std::cout << "Instance " << instance_index << " "
-                          << "negative_log_likelihood: " << score.negative_log_likelihood
-                          << std::endl;
-                std::cout << "Instance " << instance_index << " "
-                          << "production: " << score.production << std::endl;
-                std::cout << "Instance " << instance_index << " "
-                          << "mean: " << score.mean << std::endl;
-                std::cout << "Instance " << instance_index << " "
-                          << "g_mean: " << score.g_mean << std::endl;
-                std::cout << "Instance " << instance_index << " "
-                          << "h_mean: " << score.h_mean << std::endl;
-                std::cout << "Instance " << instance_index << " "
-                          << "loss: " << score.loss << std::endl;
-                std::cout << "Instance " << instance_index << " "
-                          << "sentence_probability: " << score.sentence_probability
-                          << std::endl;
+                const auto& utterance = utterances.at(utterance_order);
+                const auto& score     = results.at(utterance_order);
+                scores.push_back({utterance, score, duration});
+                if(verbose)
+                {
+                    std::cout << instance_index << " Inference took " << duration
+                              << " milliseconds." << std::endl;
+                    std::cout << "Instance " << instance_index << " sentence: " << utterance
+                              << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "negative_log_likelihood: " << score.negative_log_likelihood
+                              << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "production: " << score.production << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "mean: " << score.mean << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "g_mean: " << score.g_mean << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "h_mean: " << score.h_mean << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "loss: " << score.loss << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "sentence_probability: " << score.sentence_probability
+                              << std::endl;
+                }
+            }
+        }
+        else
+        {
+            for(uint64_t utterance_order = 0; utterance_order < utterances.size();
+                ++utterance_order)
+            {
+                if(utterance_order % instance_index)
+                {
+                    continue;
+                }
+
+                const auto& utterance = utterances.at(utterance_order);
+                scorer.score_context(utterance, false);
+
+                auto inference_chrono = std::chrono::high_resolution_clock::now();
+                const auto& score     = scorer.score_context(utterance, true);
+                const auto duration =
+                    std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::high_resolution_clock::now() - inference_chrono)
+                        .count();
+                scores.push_back({utterance, score, duration});
+
+                if(verbose)
+                {
+                    std::cout << instance_index << " Inference took " << duration
+                              << " milliseconds." << std::endl;
+                    std::cout << "Instance " << instance_index << " sentence: " << utterance
+                              << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "negative_log_likelihood: " << score.negative_log_likelihood
+                              << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "production: " << score.production << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "mean: " << score.mean << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "g_mean: " << score.g_mean << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "h_mean: " << score.h_mean << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "loss: " << score.loss << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "sentence_probability: " << score.sentence_probability
+                              << std::endl;
+                }
             }
         }
 
         return scores;
     };
 
-    const auto& phonetics_dictionary =
-        Vocinity::Homophonic_Alternative_Composer::load_phonetics_dictionary(
-            "/opt/cloud/projects/vocinity/models/context-scorer/cmudict-0.7b.txt");
-
-    Vocinity::Homophonic_Alternative_Composer composer{phonetics_dictionary};
-    Vocinity::Homophonic_Alternative_Composer::Instructions instructions;
-    instructions.max_distance              = 2;
-    instructions.max_best_num_alternatives = 10;
-    //instructions.dismissed_word_indices    = {0, 1, 2, 3};
-    instructions.method =
-        Vocinity::Homophonic_Alternative_Composer::Matching_Method::Phoneme_Levenshtein;
-
-    if(true)
-    {
-        if(instructions.method
-           == Vocinity::Homophonic_Alternative_Composer::Matching_Method::
-               Phoneme_Transcription)
-        {
-            const auto similarity_map_composed = Vocinity::Homophonic_Alternative_Composer::
-                precompute_phoneme_similarity_map_from_phonetics_dictionary(
-                    phonetics_dictionary, 2, 0, false);
-            Vocinity::Homophonic_Alternative_Composer::save_precomputed_phoneme_similarity_map(
-                similarity_map_composed,
-                "./similarity_map-cmudict07b-dist2-phoneme_transcription.cbor",
-                true);
-        }
-        else if(instructions.method
-                == Vocinity::Homophonic_Alternative_Composer::Matching_Method::
-                    Phoneme_Levenshtein)
-        {
-            const auto similarity_map_composed = Vocinity::Homophonic_Alternative_Composer::
-                precompute_phoneme_similarity_map_from_phonetics_dictionary(
-                    phonetics_dictionary, 2, 0, true);
-            Vocinity::Homophonic_Alternative_Composer::save_precomputed_phoneme_similarity_map(
-                similarity_map_composed,
-                "./similarity_map-cmudict07b-dist2-phoneme_levenshtein.cbor",
-                true);
-        }
-
-        return 0;
-    }
-
-    if(instructions.method
-       == Vocinity::Homophonic_Alternative_Composer::Matching_Method::Phoneme_Transcription)
-    {
-        auto similarity_map =
-            Vocinity::Homophonic_Alternative_Composer::load_precomputed_phoneme_similarity_map(
-                "/opt/cloud/projects/vocinity/models/context-scorer/"
-                "similarity_map-cmudict07b-dist2-phoneme_transcription.cbor",
-                true);
-
-        composer.set_precomputed_phoneme_similarity_map(std::move(similarity_map), false);
-    }
-    else if(instructions.method
-            == Vocinity::Homophonic_Alternative_Composer::Matching_Method::Phoneme_Levenshtein)
-    {
-        auto similarity_map =
-            Vocinity::Homophonic_Alternative_Composer::load_precomputed_phoneme_similarity_map(
-                "/opt/cloud/projects/vocinity/models/context-scorer/"
-                "similarity_map-cmudict07b-dist2-phoneme_levenshtein.cbor",
-                true);
-
-        composer.set_precomputed_phoneme_similarity_map(std::move(similarity_map), true);
-    }
-
-    const auto input                   = std::string(argv[5]);
-    const auto& splitted_raw_sentences = akil::string::split(input, '.');
-    std::cout << "----------------------------------------------------------------------------"
-                 "-------------------------"
-              << std::endl;
-    std::cout << "Input is: \"" << input << "\"" << std::endl;
-    std::cout << "----------------------------------------------------------------------------"
-                 "-------------------------"
-              << std::endl;
-    std::cout << instructions.max_best_num_alternatives
-              << " best alternative(s) wanted and max allowed variational distance is "
-              << instructions.max_distance << ". "
-              << (not(instructions.dismissed_words.empty()
-                      and instructions.dismissed_word_indices.empty())
-                      ? "Words "
-                      : "No words dismissed.");
-    if(not(instructions.dismissed_words.empty()
-           and instructions.dismissed_word_indices.empty()))
-    {
-        std::string dismissed_indices;
-        dismissed_indices += "{ ";
-        for(auto item : instructions.dismissed_word_indices)
-        {
-            dismissed_indices += std::to_string(item) + ", ";
-        }
-        dismissed_indices.resize(dismissed_indices.size() - 2);
-        dismissed_indices += "} ";
-        std::cout << dismissed_indices;
-        for(auto item : instructions.dismissed_words)
-        {
-            std::cout << item << ' ';
-        }
-        std::cout << "are dismissed.";
-    }
-    std::cout << std::endl;
-    std::cout << "----------------------------------------------------------------------------"
-                 "-------------------------"
-              << std::endl;
 
     std::vector<std::vector<std::vector<std::string>>> combinations;
-    combinations.resize(splitted_raw_sentences.size());
-    ushort sentence_order = 0;
-    for(const auto& sentence : splitted_raw_sentences)
+    if(true)
     {
-        std::vector<std::string> raw_words = akil::string::split(sentence, ' ');
-        if(not instructions.dismissed_words.empty())
+        const auto& phonetics_dictionary =
+            Vocinity::Homophonic_Alternative_Composer::load_phonetics_dictionary(
+                "/opt/cloud/projects/vocinity/models/context-scorer/cmudict-0.7b.txt");
+
+        Vocinity::Homophonic_Alternative_Composer composer{phonetics_dictionary};
+        Vocinity::Homophonic_Alternative_Composer::Instructions instructions;
+        instructions.max_distance              = 2;
+        instructions.max_best_num_alternatives = 2;
+        //  instructions.dismissed_word_indices    = {0, 1, 2,4,5,6};
+        instructions.method =
+            Vocinity::Homophonic_Alternative_Composer::Matching_Method::Phoneme_Transcription;
+
+        if(false)
         {
-            raw_words = akil::string::split(sentence, ' ');
+            if(instructions.method
+               == Vocinity::Homophonic_Alternative_Composer::Matching_Method::
+                   Phoneme_Transcription)
+            {
+                const auto similarity_map_composed =
+                    Vocinity::Homophonic_Alternative_Composer::
+                        precompute_phoneme_similarity_map_from_phonetics_dictionary(
+                            phonetics_dictionary, 2, 0, false);
+                Vocinity::Homophonic_Alternative_Composer::
+                    save_precomputed_phoneme_similarity_map(
+                        similarity_map_composed,
+                        "./similarity_map-cmudict07b-dist2-phoneme_transcription.cbor",
+                        true);
+            }
+            else if(instructions.method
+                    == Vocinity::Homophonic_Alternative_Composer::Matching_Method::
+                        Phoneme_Levenshtein)
+            {
+                const auto similarity_map_composed =
+                    Vocinity::Homophonic_Alternative_Composer::
+                        precompute_phoneme_similarity_map_from_phonetics_dictionary(
+                            phonetics_dictionary, 2, 0, true);
+                Vocinity::Homophonic_Alternative_Composer::
+                    save_precomputed_phoneme_similarity_map(
+                        similarity_map_composed,
+                        "./similarity_map-cmudict07b-dist2-phoneme_levenshtein.cbor",
+                        true);
+            }
+
+            return 0;
         }
 
-        auto warmup_combinations    = composer.get_alternatives(sentence, instructions);
-        auto chrono = std::chrono::high_resolution_clock::now();
-        const double warmup_count = 1; // 100;
-                                       //  for(int warmup = 0; warmup < warmup_count; ++warmup)
-                                       //   {
-        const auto word_combinations = composer.get_alternatives(sentence, instructions, true);
-        //  }
-        const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                  std::chrono::high_resolution_clock::now() - chrono)
-                                  .count();
-        std::cout << "Homonym generation took " << duration / warmup_count << " msecs"
-                  << std::endl;
-        std::cout << "------------------------------------------------------------------------"
-                     "-----------------------------"
-                  << std::endl;
-
-        combinations[sentence_order].push_back(akil::string::split(sentence, ' '));
-        for(ushort block_order = 0; block_order < word_combinations.size(); ++block_order)
+        if(true)
         {
+            if(instructions.method
+               == Vocinity::Homophonic_Alternative_Composer::Matching_Method::
+                   Phoneme_Transcription)
             {
-                const auto& word_alternatives = word_combinations.at(block_order);
-                for(const auto& alternative : word_alternatives)
-                {
-                    const auto& [similar_word, distance, op] = alternative;
-                    std::cout << std::string(block_order, '\t') << similar_word << " (" << op
-                              << distance << ")" << std::endl;
-                }
-            }
-            if(not instructions.dismissed_word_indices.empty())
-            {
-                if(akil::memory::vector_contains(instructions.dismissed_word_indices,
-                                                 (ushort) block_order))
-                {
-                    continue;
-                }
-            }
+                auto similarity_map = Vocinity::Homophonic_Alternative_Composer::
+                    load_precomputed_phoneme_similarity_map(
+                        "/opt/cloud/projects/vocinity/models/context-scorer/"
+                        "similarity_map-cmudict07b-dist2-phoneme_transcription.cbor",
+                        true);
 
+                composer.set_precomputed_phoneme_similarity_map(std::move(similarity_map),
+                                                                false);
+            }
+            else if(instructions.method
+                    == Vocinity::Homophonic_Alternative_Composer::Matching_Method::
+                        Phoneme_Levenshtein)
+            {
+                auto similarity_map = Vocinity::Homophonic_Alternative_Composer::
+                    load_precomputed_phoneme_similarity_map(
+                        "/opt/cloud/projects/vocinity/models/context-scorer/"
+                        "similarity_map-cmudict07b-dist2-phoneme_levenshtein.cbor",
+                        true);
+
+                composer.set_precomputed_phoneme_similarity_map(std::move(similarity_map),
+                                                                true);
+            }
+        }
+
+        const auto input                   = std::string(argv[5]);
+        const auto& splitted_raw_sentences = akil::string::split(input, '.');
+        std::cout
+            << "----------------------------------------------------------------------------"
+               "-------------------------"
+            << std::endl;
+        std::cout << "Input is: \"" << input << "\"" << std::endl;
+        std::cout
+            << "----------------------------------------------------------------------------"
+               "-------------------------"
+            << std::endl;
+        std::cout << instructions.max_best_num_alternatives
+                  << " best alternative(s) wanted and max allowed variational distance is "
+                  << instructions.max_distance << ". "
+                  << (not(instructions.dismissed_words.empty()
+                          and instructions.dismissed_word_indices.empty())
+                          ? "Words "
+                          : "No words dismissed.");
+        if(not(instructions.dismissed_words.empty()
+               and instructions.dismissed_word_indices.empty()))
+        {
+            std::string dismissed_indices;
+            dismissed_indices += "{ ";
+            for(auto item : instructions.dismissed_word_indices)
+            {
+                dismissed_indices += std::to_string(item) + ", ";
+            }
+            dismissed_indices.resize(dismissed_indices.size() - 2);
+            dismissed_indices += "} ";
+            std::cout << dismissed_indices;
+            for(auto item : instructions.dismissed_words)
+            {
+                std::cout << item << ' ';
+            }
+            std::cout << "are dismissed.";
+        }
+        std::cout << std::endl;
+        std::cout
+            << "----------------------------------------------------------------------------"
+               "-------------------------"
+            << std::endl;
+
+        combinations.resize(splitted_raw_sentences.size());
+        ushort sentence_order = 0;
+        for(const auto& sentence : splitted_raw_sentences)
+        {
+            std::vector<std::string> raw_words = akil::string::split(sentence, ' ');
             if(not instructions.dismissed_words.empty())
             {
-                if(akil::memory::vector_contains(instructions.dismissed_words,
-                                                 raw_words.at(block_order)))
-                {
-                    continue;
-                }
+                raw_words = akil::string::split(sentence, ' ');
             }
+            auto warmup_combinations = composer.get_alternatives(sentence, instructions);
+            auto chrono              = std::chrono::high_resolution_clock::now();
+            const auto word_combinations =
+                composer.get_alternatives(sentence, instructions, true);
+            const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                      std::chrono::high_resolution_clock::now() - chrono)
+                                      .count();
+            std::cout << "Homonym generation took " << duration << " msecs" << std::endl;
+            std::cout
+                << "------------------------------------------------------------------------"
+                   "-----------------------------"
+                << std::endl;
 
-            const size_t past_items_count = combinations.at(sentence_order).size();
-            for(uint64_t past_item_order = 0; past_item_order < past_items_count;
-                ++past_item_order)
+            combinations[sentence_order].push_back(akil::string::split(sentence, ' '));
+            for(ushort block_order = 0; block_order < word_combinations.size(); ++block_order)
             {
-                const auto& word_alternatives = word_combinations.at(block_order);
-                for(const auto& alternative : word_alternatives)
                 {
-                    const auto& [similar_word, distance, op] = alternative;
-                    auto past_sentence         = combinations[sentence_order][past_item_order];
-                    past_sentence[block_order] = similar_word;
-                    combinations[sentence_order].push_back(past_sentence);
+                    const auto& word_alternatives = word_combinations.at(block_order);
+                    for(const auto& alternative : word_alternatives)
+                    {
+                        const auto& [similar_word, distance, op] = alternative;
+                        std::cout << std::string(block_order, '\t') << similar_word << " ("
+                                  << op << distance << ")" << std::endl;
+                    }
+                }
+                if(not instructions.dismissed_word_indices.empty())
+                {
+                    if(akil::memory::vector_contains(instructions.dismissed_word_indices,
+                                                     (ushort) block_order))
+                    {
+                        continue;
+                    }
+                }
+
+                if(not instructions.dismissed_words.empty())
+                {
+                    if(akil::memory::vector_contains(instructions.dismissed_words,
+                                                     raw_words.at(block_order)))
+                    {
+                        continue;
+                    }
+                }
+
+                const size_t past_items_count = combinations.at(sentence_order).size();
+                for(uint64_t past_item_order = 0; past_item_order < past_items_count;
+                    ++past_item_order)
+                {
+                    const auto& word_alternatives = word_combinations.at(block_order);
+                    for(const auto& alternative : word_alternatives)
+                    {
+                        const auto& [similar_word, distance, op] = alternative;
+                        auto past_sentence = combinations[sentence_order][past_item_order];
+                        past_sentence[block_order] = similar_word;
+                        combinations[sentence_order].push_back(past_sentence);
+                    }
                 }
             }
+            ++sentence_order;
+
+            std::cout
+                << "------------------------------------------------------------------------"
+                   "-----------------------------"
+                << std::endl;
         }
-        ++sentence_order;
-
-        std::cout << "------------------------------------------------------------------------"
-                     "-----------------------------"
-                  << std::endl;
     }
-
+    //	combinations.resize(1);
+    //	combinations[0].push_back({"smart", "rower"});
+    //	combinations[0].push_back({"smart", "roher"});
     const std::string context_helper =
         "Click on the eye in the icon tray to pick your product of interest or say "
         "echelon-connect bike or smart rower.";
+
     std::vector<std::string> utterances;
     for(const auto& sentence : combinations)
     {
@@ -281,7 +355,6 @@ main(int argc, char* argv[])
             alternative.resize(alternative.size() - 1);
             alternative += ".";
             auto full_statement = context_helper + " " + alternative;
-
 
 #ifdef CPP17_AVAILABLE
             std::transform(
@@ -310,7 +383,7 @@ main(int argc, char* argv[])
                   << std::endl;
     }
 
-    std::vector<std::pair<std::string, Vocinity::Context_Scorer::Score>> context_scores;
+    std::vector<std::tuple<std::string, Vocinity::Context_Scorer::Score, long>> context_scores;
     // as you see these are static functions and affect all instances
     // NOTE THAT IF YOUR TORCH CONFIGURATION USES OMP UNDER THE HOOD INSTEAD OF MKL's
     // then you are setting up entire omp thread pool for your remaining part of the
@@ -331,8 +404,8 @@ main(int argc, char* argv[])
         Vocinity::Context_Scorer::
             optimize_parallelization_policy_for_use_of_multiple_instances();
 
-        std::vector<
-            std::future<std::vector<std::pair<std::string, Vocinity::Context_Scorer::Score>>>>
+        std::vector<std::future<
+            std::vector<std::tuple<std::string, Vocinity::Context_Scorer::Score, long>>>>
             instances;
         for(int instance_index = 0; instance_index < physical_cores; ++instance_index)
         {
@@ -354,21 +427,29 @@ main(int argc, char* argv[])
               context_scores.begin(),
               context_scores.end(),
               [](const auto& one, const auto& another) -> bool
-              { return one.second.mean > another.second.mean; });
+              {
+                  const auto& [_, first_score, __]       = one;
+                  const auto& [___, second_score, _____] = another;
+                  return first_score.mean > second_score.mean;
+              });
 #else
     std::sort(context_scores.begin(),
               context_scores.end(),
               [](const auto& one, const auto& another) -> bool
-              { return one.second.mean > another.second.mean; });
+              {
+                  const auto& [_, first_score, __] = one;
+                  const auto& [___, second_score, _____] = another;
+                  return first_score.mean > second_score.mean;
+              });
 #endif
 
     uint64_t entry_order = 0;
-    for(const auto& entry : context_scores)
+    for(const auto& [utterence, score, time] : context_scores)
     {
         if(entry_order++ < 5)
         {
-            const auto& score = entry.second;
-            std::cout << "Sentence: " << entry.first << std::endl;
+            std::cout << "Sentence: " << utterence << std::endl;
+            std::cout << "Duration: " << time << std::endl;
             std::cout << "negative_log_likelihood: " << score.negative_log_likelihood
                       << std::endl;
             std::cout << "production: " << score.production << std::endl;
@@ -384,7 +465,8 @@ main(int argc, char* argv[])
         }
         else
         {
-            std::cout << "mean perplexity: " << entry.second.mean << " | " << entry.first
+            std::cout << "mean perplexity: " << score.mean << " | " << utterence
+                      << " | Duration: " << time << std::endl
                       << std::endl
                       << std::endl;
         }

@@ -32,7 +32,7 @@ unix {
     }
 
     isEmpty(FAKE_INSTALL): FAKE_INSTALL=$$(FAKE_INSTALL)
-    !isEmpty(FAKE_INSTALL){
+    !isEmpty(FAKE_INSTALL):!equals(FAKE_INSTALL, 1){
         FORCELINK_CPP_FILE = force_link.cpp
         forcelink.target = $$FORCELINK_CPP_FILE
         forcelink.depends = FORCE
@@ -57,7 +57,6 @@ unix {
             cp -r $$postCommandBody $${FAKE_INSTALL}/lib/akil;
             QMAKE_POST_LINK+=$$buildRootInstall.commands
         }
-
         isEqual(TEMPLATE,app){
             message(cp -r $${OUT_PWD}/bin/$${TARGET} $$FAKE_INSTALL)
             buildRootInstall.commands=mkdir $${FAKE_INSTALL} || true; \
@@ -72,9 +71,8 @@ unix {
     INSTALLS +=  target
 
     header.path=$${INCLUDE_DIR}/
-    header.files=$${SRC_DIR}/Context_Scorer.hpp $${SRC_DIR}/Homophonic_Alternatives.hpp
+    header.files=$${SRC_DIR}/Context-Scorer.hpp $${SRC_DIR}/Homophonic-Alternatives.hpp
     INSTALLS +=  header
-
 
     REAL_DEPL_ROOT=$$DEPL_ROOT
     !isEmpty(BUILD_ROOT){
@@ -82,12 +80,12 @@ unix {
     }
     escapedDepsRoot=$$re_escape($$quote($$DEPS_ROOT))
     escapedDeplRoot=$$re_escape($$quote($$REAL_DEPL_ROOT))
-    system('echo "$${LITERAL_HASH} fresh copy" > $${PWD}/depend_context_scorer.pri')
+    system('echo "$${LITERAL_HASH} fresh copy" > $${PWD}/depend-context_scorer.pri')
     pri.path=$${DEPL_ROOT}/share/akil/qmake
     pri.extra=\
-    cp -r $${PWD}/depend_context_scorer_template.pri $${PWD}/depend_context_scorer.pri;\
-    sed -i "s%DEPS_DIR_HERE%$$escapedDepsRoot%g" $${PWD}/depend_context_scorer.pri; \
-    sed -i "s%DEPL_DIR_HERE%$$escapedDeplRoot%g" $${PWD}/depend_context_scorer.pri;
-    pri.files=$${PWD}/depend_context_scorer.pri
+    cp -r $${PWD}/depend-context_scorer-template.pri $${PWD}/depend-context_scorer.pri;\
+    sed -i "s%DEPS_DIR_HERE%$$escapedDepsRoot%g" $${PWD}/depend-context_scorer.pri; \
+    sed -i "s%DEPL_DIR_HERE%$$escapedDeplRoot%g" $${PWD}/depend-context_scorer.pri;
+    pri.files=$${PWD}/depend-context_scorer.pri
     INSTALLS +=  pri
 }

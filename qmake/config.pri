@@ -32,6 +32,7 @@ unix{
         DEPS_ROOT=$$[QT_SYSROOT]/$$DEPS_ROOT
         DEPL_ROOT=$$[QT_SYSROOT]/$$DEPL_ROOT
     }
+
     linux-g++{
         message("Desktop Build")
     }
@@ -155,8 +156,12 @@ unix{
             message("FOUND CUDA")
             DEFINES+=CUDA_AVAILABLE
             CONFIG+=CUDA_AVAILABLE
-            extensionProcessor(THRUST)
-            include(cuda.pri)
+            enableExtension(THRUST)
+            enableExtension(TENSOR_RT)
+            enableExtension(CUDNN)
+            enableExtension(ONNX)
+            #enableExtension(LIGHTSEQ)
+            #enableExtension(FASTER_TRANSFORMER)
         }
     }
 

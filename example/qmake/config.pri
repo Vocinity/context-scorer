@@ -155,9 +155,13 @@ unix{
             message("FOUND CUDA")
             DEFINES+=CUDA_AVAILABLE
             CONFIG+=CUDA_AVAILABLE
-            extensionProcessor(THRUST)
-            include(cuda.pri)
-         }
+            enableExtension(THRUST)
+            #enableExtension(LIGHTSEQ)
+            #enableExtension(FASTER_TRANSFORMER)
+            enableExtension(ONNX)
+            enableExtension(TENSOR_RT)
+            enableExtension(CUDNN)
+        }
     }
 
     Release:include(conan.pri)
@@ -176,6 +180,11 @@ unix{
     enableExtension(MAGIC_ENUM)
     extensionProcessor(RANGE_V3)
     enableExtension(TORCH)
+
+    FASTER_TRANSFORMER_AVAILABLE{
+        DEFINES+= BUILD_GPT CUDA11_MODE WMMA
+        CONFIG+= BUILD_GPT CUDA11_MODE WMMA
+    }
 
     #    CONFIG(debug, debug|release) {
     #    CONFIG += sanitizer
