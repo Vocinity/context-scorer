@@ -431,7 +431,6 @@ Vocinity::Context_Scorer::score_contexts(const std::vector<std::string>& sentenc
     struct Batch_Metadata
     {
         ulong actual_sequence_length = 0;
-        ulong sequence_length        = 0;
         torch::Tensor input_ids;
         torch::Tensor att_mask;
     };
@@ -498,7 +497,7 @@ Vocinity::Context_Scorer::score_contexts(const std::vector<std::string>& sentenc
         }
 
         batch_metadata.push_back(
-            {actual_token_size + 2, sequence_length, input_ids, input_mask});
+            {actual_token_size + 2, input_ids, input_mask});
     }
 
     std::vector<Score> scores;
@@ -518,7 +517,7 @@ Vocinity::Context_Scorer::score_contexts(const std::vector<std::string>& sentenc
                 logits, torch::nn::functional::LogSoftmaxFuncOptions(-1));
 
             const auto& out_mask =
-                input_ids.index({Slice(0, metadata.actual_sequence_length)});
+                input_ids.index({Slice(1, metadata.actual_sequence_length)});
             torch::Tensor target_log_probs =
                 log_probs.gather(-1, out_mask.unsqueeze(-1)).squeeze(-1);
 
@@ -559,9 +558,9 @@ Vocinity::Context_Scorer::score_contexts(const std::vector<std::string>& sentenc
         if(batch_payload.loss.numel())
         {
             const auto& loss = batch_payload.loss;
+
             const auto neg_log_likelihood =
                 loss * torch::Scalar(int64_t(metadata.actual_sequence_length));
-
             score.negative_log_likelihood = neg_log_likelihood.item().toDouble();
 
             const auto loss_exp = loss.exp();
@@ -570,6 +569,7 @@ Vocinity::Context_Scorer::score_contexts(const std::vector<std::string>& sentenc
             {
                 score.loss = loss_exp.item().toDouble();
             }
+
             score.sentence_probability =
                 metadata.actual_sequence_length > 0
                     ? -1

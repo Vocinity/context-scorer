@@ -39,49 +39,99 @@ main(int argc, char* argv[])
                          .count()
                   << " milliseconds\n\n";
 
-        scorer.score_contexts(utterances, true);
-
-        auto inference_chrono = std::chrono::high_resolution_clock::now();
-        const auto& results     = scorer.score_contexts(utterances, false);
-        const auto duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::high_resolution_clock::now() - inference_chrono)
-                .count();
-
+        bool batching = true;
         std::vector<std::tuple<std::string, Vocinity::Context_Scorer::Score, long>> scores;
-        for(uint64_t utterance_order = 0; utterance_order < utterances.size();
-            ++utterance_order)
+        if(batching)
         {
-            if(utterance_order % instance_index)
-            {
-                continue;
-            }
+            scorer.score_contexts(utterances, true);
 
-            const auto& utterance = utterances.at(utterance_order);
-            const auto& score= results.at(utterance_order);
-            scores.push_back({utterance,score, duration});
-            if(verbose)
+            auto inference_chrono = std::chrono::high_resolution_clock::now();
+            const auto& results   = scorer.score_contexts(utterances, true);
+            const auto duration =
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::high_resolution_clock::now() - inference_chrono)
+                    .count();
+
+            for(uint64_t utterance_order = 0; utterance_order < utterances.size();
+                ++utterance_order)
             {
-                std::cout << instance_index << " Inference took " << duration
-                          << " milliseconds." << std::endl;
-                std::cout << "Instance " << instance_index << " sentence: " << utterance
-                          << std::endl;
-                std::cout << "Instance " << instance_index << " "
-                          << "negative_log_likelihood: " << score.negative_log_likelihood
-                          << std::endl;
-                std::cout << "Instance " << instance_index << " "
-                          << "production: " << score.production << std::endl;
-                std::cout << "Instance " << instance_index << " "
-                          << "mean: " << score.mean << std::endl;
-                std::cout << "Instance " << instance_index << " "
-                          << "g_mean: " << score.g_mean << std::endl;
-                std::cout << "Instance " << instance_index << " "
-                          << "h_mean: " << score.h_mean << std::endl;
-                std::cout << "Instance " << instance_index << " "
-                          << "loss: " << score.loss << std::endl;
-                std::cout << "Instance " << instance_index << " "
-                          << "sentence_probability: " << score.sentence_probability
-                          << std::endl;
+                if(utterance_order % instance_index)
+                {
+                    continue;
+                }
+
+                const auto& utterance = utterances.at(utterance_order);
+                const auto& score     = results.at(utterance_order);
+                scores.push_back({utterance, score, duration});
+                if(verbose)
+                {
+                    std::cout << instance_index << " Inference took " << duration
+                              << " milliseconds." << std::endl;
+                    std::cout << "Instance " << instance_index << " sentence: " << utterance
+                              << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "negative_log_likelihood: " << score.negative_log_likelihood
+                              << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "production: " << score.production << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "mean: " << score.mean << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "g_mean: " << score.g_mean << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "h_mean: " << score.h_mean << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "loss: " << score.loss << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "sentence_probability: " << score.sentence_probability
+                              << std::endl;
+                }
+            }
+        }
+        else
+        {
+            for(uint64_t utterance_order = 0; utterance_order < utterances.size();
+                ++utterance_order)
+            {
+                if(utterance_order % instance_index)
+                {
+                    continue;
+                }
+
+                const auto& utterance = utterances.at(utterance_order);
+                scorer.score_context(utterance, false);
+
+                auto inference_chrono = std::chrono::high_resolution_clock::now();
+                const auto& score     = scorer.score_context(utterance, true);
+                const auto duration =
+                    std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::high_resolution_clock::now() - inference_chrono)
+                        .count();
+                scores.push_back({utterance, score, duration});
+
+                if(verbose)
+                {
+                    std::cout << instance_index << " Inference took " << duration
+                              << " milliseconds." << std::endl;
+                    std::cout << "Instance " << instance_index << " sentence: " << utterance
+                              << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "negative_log_likelihood: " << score.negative_log_likelihood
+                              << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "production: " << score.production << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "mean: " << score.mean << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "g_mean: " << score.g_mean << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "h_mean: " << score.h_mean << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "loss: " << score.loss << std::endl;
+                    std::cout << "Instance " << instance_index << " "
+                              << "sentence_probability: " << score.sentence_probability
+                              << std::endl;
+                }
             }
         }
 

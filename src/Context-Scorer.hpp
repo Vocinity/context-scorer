@@ -128,7 +128,7 @@ namespace Vocinity
          * get_max_sequence_length chars long padded blocks of context one by one sequentially
          * without batching. So input is always in the [1,get_max_sequence_length] shape.
          * Summing up results of two blocks and inferencing two blocks at once is same for us
-         * in our way of perplexity computation.
+         * in terms of accuracy in our way of perplexity computation.
          *
          */
         Score score_context(const std::string& context,
