@@ -121,6 +121,7 @@ namespace Vocinity
          * This means you will lose seconds at the beginning of next run.
          * But if you split your sequential runs as equal length of 64 chars of blocks
          * or you are not planning to run this function again then no problem.
+         * Note that, scores are only reproducible for same batch set.
          *
          *
          * consider_intra_batching=false has no such constrain and slower
@@ -132,16 +133,28 @@ namespace Vocinity
          *
          */
         Score score_context(const std::string& context,
-                            const bool per_char_normalized = true,
-                            const bool consider_intra_batching      = false);
+                            const bool per_char_normalized     = true,
+                            const bool consider_intra_batching = false);
         /**
          * @brief is batching perplexity computation of multiple separate contexts.
+         * Note that, scores are only reproducible for same batch set.
+         *
+         * Scores will be similar for same item between single and batch runs but not
+         * same.
          */
         std::vector<Score> score_contexts(const std::vector<std::string>& contexts,
                                           const bool per_char_normalized = true);
 
       public:
         ushort get_max_sequence_length() const;
+
+      public:
+#ifdef CUDA_AVAILABLE
+        inline void flush_cuda_tensor_cache_before_inference(const bool flush = true)
+        {
+            _flush_torch_cuda_cache = flush;
+        }
+#endif
 
       private:
         Encoded_Sequence encode(const std::string& sentence, const bool parallel = true);
@@ -151,6 +164,7 @@ namespace Vocinity
                                  const bool per_char_normalized = false);
 
       private:
+        bool _flush_torch_cuda_cache = false;
         const GPT_TYPE _type;
         std::unique_ptr<Abstract_Scorer_Backend> _inference_backend;
         const Precision _precision;

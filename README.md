@@ -58,7 +58,7 @@ make install
 
 *Running `qmake` command will show customization information alongside available parameters and how to use them.*
 
-> Common  and lib_Context_Scorer
+> Common  and lib_Context-Scorer
 
 | **Argument**                | **Default Value**  |**Notes**                         |
 |:---------------------------:|:------------------:|:--------------------------------:|
@@ -106,10 +106,16 @@ make install
 |:---------------------------:|:------------------:|:-------------------------------------:|
 | ```EXAMPLE_OFF```           | ```0```            | Building example
 
+> grpc-server
+
+| **Switch**                  | **Default Value**  |**By Default**                              |
+|:---------------------------:|:------------------:|:-------------------------------------:|
+| ```SERVER_OFF```           | ```0```            | Building server
+
 
 #### Installation Material
 
-> Context_Scorer
+> Context-Scorer
 
 *One* of below depending relese|debug build and hw acceleration backend.
 ```
@@ -120,7 +126,20 @@ DEPL_ROOT/bin/akil/Context-Scorer_cu+dbg
 DEPL_ROOT/bin/akil/Context-Scorer_cl+dbg
 DEPL_ROOT/bin/akil/Context-Scorer_cpu+dbg
 ```
-> lib_Context_Scorer
+
+> Context-Scorer_Server
+
+*One* of below depending relese|debug build and hw acceleration backend.
+```
+DEPL_ROOT/bin/akil/Context-Scorer_Server_cu
+DEPL_ROOT/bin/akil/Context-Scorer_Server_cl
+DEPL_ROOT/bin/akil/Context-Scorer_Server_cpu
+DEPL_ROOT/bin/akil/Context-Scorer_Server_cu+dbg
+DEPL_ROOT/bin/akil/Context-Scorer_Server_cl+dbg
+DEPL_ROOT/bin/akil/Context-Scorer_Server_cpu+dbg
+```
+
+> lib_Context-Scorer
 
 Release build of the commit 6691d7dcfeb5076db749a0cba25b48cfe5395379@branch and cpu backend would install:
 ```
@@ -131,22 +150,23 @@ DEPL_ROOT/lib/akil/lib_Context-Scorer.so.2021-08-05_19:02@6691d7dcfeb5076db749a0
 
 DEPL_ROOT/include/akil/Context_Scorer.hpp
 
-DEPL_ROOT/share/akil/qmake/depend_context_scorer.pri
+DEPL_ROOT/share/akil/qmake/depend_context-scorer.pri
 ```
-For qmake build system, including only `depend_context_scorer.pri`is enough for everything; header, libraries, lower level dependencies...
+For qmake build system, including only `depend_context-scorer.pri`is enough for everything; header, libraries, lower level dependencies...
 Just like how Context_Scorer do.
 
 > Conan
 
 If in use, Conan dependencies and `conanbuildinfo.pri`go to `DEPL_ROOT/conan/pro-file-name-of-the-subproject`:
 ```
-DEPL_ROOT/conan/context-scorer-example
-DEPL_ROOT/conan/context-scorer-library
+DEPL_ROOT/conan/context-scorer_example
+DEPL_ROOT/conan/context-scorer_server
+DEPL_ROOT/conan/context-scorer_library
 ```
-and you will find `DEPL_ROOT/share/akil/qmake/pro-file-name-of-the-subproject-conan-linker-runtime.sh`:
+and you will find `DEPL_ROOT/share/akil/qmake/pro-file-name-of-the-subproject_conan-linker-runtime.sh`:
 ```
-DEPL_ROOT/share/akil/qmake/context-scorer-example-conan-linker-runtime.sh
-DEPL_ROOT/share/akil/qmake/context-scorer-library-conan-linker-runtime.sh
+DEPL_ROOT/share/akil/qmake/context-scorer-example_conan-linker-runtime.sh
+DEPL_ROOT/share/akil/qmake/context-scorer-library_conan-linker-runtime.sh
 ```
 You should export your Conan library paths by using these scripts to your linker in case of Conan use.
 
@@ -160,7 +180,7 @@ make distclean
 make uninstall
 ```
 
-#### Example Building Procedure
+#### Build Procedure
 
 > We are on Centos, default gcc is 8.4, we dont have a nvidia gpu, our cpu has not igpu.
 

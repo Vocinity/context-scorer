@@ -11,6 +11,7 @@ message("Current config parameters are: $$CONFIG")
     message("- - - - - - - - - - - - - - - Project Structure - - - - - - - - - - - - - - - ")
     message("TEST_OFF - all tests.")
     message("EXAMPLE_OFF - Do not build example program.")
+    message("SERVER_OFF - Do not build server.")
     message("- - - - - - - - - - - - - - - CXX - - - - - - - - - - - - - - - ")
     message("CPP17 - otherwise CPP20 flags are set.")
     message("GCC8 - otherwise default gcc wil be used.")
@@ -28,6 +29,7 @@ message("Current config parameters are: $$CONFIG")
     message("- - - - - - - - - - - - - - - https://conan.io/center - - - - - - - - - - - - - - - ")
     message("NO_CONAN - uses (shipped) conanfile.txt or conanfile.py recipes in $$PWD/../conan/ location. Empty recipes are also disabling Conan implicitly.")
     message("- - - - - - - - - - - - - - - Extensions - - - - - - - - - - - - - - - ")
+    message("PYSTRING_OFF")
     message("DOUBLE_METAPHONE_OFF")
     message("SOUNDEX_OFF")
     message("RAPIDFUZZ_CPP_OFF")
@@ -90,6 +92,7 @@ GPL\
 CENTOS\
 GST_PLUGIN_OFF\
 EXAMPLE_OFF\
+SERVER_OFF\
 CUDA_OFF\
 CL_OFF\
 NO_CONAN\

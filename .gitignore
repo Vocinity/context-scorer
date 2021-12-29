@@ -48,3 +48,5 @@ src/Homophonic_Alternatives_orj.cpp
 qmake/dummy.cu
 
 qmake/depend-context_scorer.pri
+
+qmake/depend_context-scorer.pri

@@ -36,7 +36,7 @@ unix {
     }else{
         CONFIG += conan_basic_setup
         Context_Scorer-Conan_Deploy_Dir=$${MY_DEPL_ROOT}/conan/
-        Context_Scorer_Conan_Pri=$${Context_Scorer_Conan_Deploy_Dir}/context-scorer-library/conanbuildinfo.pri
+        Context_Scorer_Conan_Pri=$${Context_Scorer_Conan_Deploy_Dir}/context-scorer_library/conanbuildinfo.pri
         include($${Context_Scorer_Conan_Pri})
     }
 }
