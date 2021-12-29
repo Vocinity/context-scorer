@@ -1,20 +1,16 @@
-DISTFILES+= $$PWD/../conan/consume_and_deploy_deps.sh \
-    $$PWD/../conan/conanfile.txt \
-    $$PWD/../conan/consume_and_deploy_deps.sh
-
 unix{
     !NO_CONAN{
         if(exists($$PWD/../conan/conanfile.py)|exists($$PWD/../conan/conanfile.txt)){
            HasPython=false
            system("python3 --version"): HasPython = true
            if($$HasPython){
-                if(!exists($$PWD/../conan/consume_and_deploy_deps.sh)){
+                if(!exists($$PWD/../conan/consume-and-deploy-deps.sh)){
                     if(!exists($$PWD/../conan)){
                         system(mkdir $$PWD/../conan)
                     }
                     ScriptTemplate='$$escape_expand(\\n)\
                     $${LITERAL_HASH}!/bin/bash$$escape_expand(\\n)\
-                    $${LITERAL_HASH} ./consume_and_deploy_deps.sh whereToPlaceEnv profileName whereToDeployDeps$$escape_expand(\\n)\
+                    $${LITERAL_HASH} ./consume-and-deploy-deps.sh whereToPlaceEnv profileName whereToDeployDeps$$escape_expand(\\n)\
                     venvPlace=$1/conanEnv$$escape_expand(\\n)\
                     conanDir=`dirname \"$0\"`$$escape_expand(\\n)\
                     profileName=$2$$escape_expand(\\n)\
@@ -50,10 +46,10 @@ unix{
                     for d in $deployDir/*/lib; do LinkerPaths=\"$LinkerPaths:$d\"; done$$escape_expand(\\n)\
                     echo \"Set your library search paths like below to let linker know about Conan in runtime.\"$$escape_expand(\\n)\
                     echo \"export LD_LIBRARY_PATH=$LinkerPaths\"$$escape_expand(\\n)\
-                    echo \"export LD_LIBRARY_PATH=$LinkerPaths\" > $deployDir/../../share/akil/qmake/${profileName}ConanLinkerRuntime.sh$$escape_expand(\\n)\
-                    echo \"Conan runtime linker instructions are also dumped to $deployDir/../../share/akil/qmake/${profileName}ConanLinkerRuntime.sh\"'
-                    message("Exporting Conan helper $$PWD/../conan/consume_and_deploy_deps.sh")
-                    write_file($$PWD/../conan/consume_and_deploy_deps.sh,ScriptTemplate)
+                    echo \"export LD_LIBRARY_PATH=$LinkerPaths\" > $deployDir/../../share/akil/qmake/${profileName}_conan-linker-runtime.sh$$escape_expand(\\n)\
+                    echo \"Conan runtime linker instructions are also dumped to $deployDir/../../share/akil/qmake/${profileName}_conan-linker-runtime.sh\"'
+                    message("Exporting Conan helper $$PWD/../conan/consume-and-deploy-deps.sh")
+                    write_file($$PWD/../conan/consume-and-deploy-deps.sh,ScriptTemplate)
                 }
                 message("Conan Package Management in use.")
                 CONFIG+=ON_CONAN
@@ -78,13 +74,14 @@ unix{
         message("Checking $${ConanPri}")
         if(exists($${ConanPri})){
             message("Using Conan workspace in $${ConanDeployDir}")
-            prebuild.commands = /bin/bash $$PWD/../conan/consume_and_deploy_deps.sh $$OUT_PWD/../ $$PROJECT_NAME $${ConanDeployDir}
+            prebuild.commands = /bin/bash $$PWD/../conan/consume-and-deploy-deps.sh $$OUT_PWD/../ $$PROJECT_NAME $${ConanDeployDir}
             first.depends = prebuild
             QMAKE_EXTRA_TARGETS += prebuild first
         }else{
             !build_pass{
             ConanDone=-2
-                ConanMessage = $$system("/bin/bash $$PWD/../conan/consume_and_deploy_deps.sh $$OUT_PWD/../ $$PROJECT_NAME $${ConanDeployDir}",false,ConanDone)
+                ConanMessage = $$system("/bin/bash $$PWD/../conan/consume-and-deploy-deps.sh $$OUT_PWD/../\
+                $$PROJECT_NAME $${ConanDeployDir}",false,ConanDone)
                 equals(ConanDone,0){
                     message($${ConanMessage})
                     message("Conan workspace initialized.")
@@ -96,7 +93,8 @@ unix{
         }
         CONFIG += conan_basic_setup
         !build_pass:include($${ConanPri})
-        ConanClean.commands = rm -r $${ConanDeployDir}/$${PROJECT_NAME} $$OUT_PWD/../conanEnv $${ConanDeployDir}/../share/akil/qmake/$${PROJECT_NAME}ConanLinkerRuntime.sh
+        ConanClean.commands = rm -r $${ConanDeployDir}/$${PROJECT_NAME} $$OUT_PWD/../conanEnv\
+        $${ConanDeployDir}/../share/akil/qmake/$${PROJECT_NAME}_conan-linker-runtime.sh
         distclean.depends += ConanClean
         QMAKE_EXTRA_TARGETS += distclean ConanClean
     }

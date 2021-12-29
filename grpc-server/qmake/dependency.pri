@@ -34,12 +34,16 @@ unix {
     }else{
         CONFIG += conan_basic_setup
         Context_Scorer_Conan_Deploy-Dir=$${DEPL_ROOT}/conan/
-        Context_Scorer_Conan_Pri=$${Context_Scorer_Conan_Deploy_Dir}/context-scorer_library/conanbuildinfo.pri
+        Context_Scorer_Conan_Pri=$${Context_Scorer_Conan_Deploy_Dir}/context-scorer_server/conanbuildinfo.pri
         include($${Context_Scorer_Conan_Pri})
     }
 }
 
 #----------------------------------------------------
+PROTOS+=$$PWD/../src/context-scorer.proto
+PROTOPATH =
+include(protobuf.pri)
+
 SRC_DIR=$$PWD/../src/
 INCLUDEPATH += $${SRC_DIR}
 SOURCES += $${SRC_DIR}/main.cpp

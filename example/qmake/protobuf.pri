@@ -7,7 +7,7 @@ unix {
         isEmpty(PROTOC):PROTOC = $${DEPS_ROOT}/bin/protoc
         message("$$PROTOC is running for $${PROTOS}")
 
-        LIBS+= -L$${DEPS_ROOT}/lib/akil -lprotobuf
+        LIBS+= -L$${DEPS_ROOT}/lib/ -l:libprotobuf.so.30 -l:libprotobuf-lite.so.30 -l:libprotoc.so.30
 
         for(p1, PROTOS):PROTOPATH += $$clean_path($$dirname(p1))
         for(p2, PROTOPATH):PROTOPATHS += --proto_path=$${p2}

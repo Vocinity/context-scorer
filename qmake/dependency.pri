@@ -1,6 +1,6 @@
 CUDA_AVAILABLE{include(cuda.pri)}
 #----------------------------------------------------
-include($${DEPS_ROOT}/share/akil/qmake/dependMisc.pri)
+include($${DEPS_ROOT}/share/akil/qmake/depend_aMisc.pri)
 #----------------------------------------------------
 
 SRC_DIR=$$PWD/../src/

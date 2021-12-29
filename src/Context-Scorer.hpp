@@ -121,6 +121,7 @@ namespace Vocinity
          * This means you will lose seconds at the beginning of next run.
          * But if you split your sequential runs as equal length of 64 chars of blocks
          * or you are not planning to run this function again then no problem.
+         * Note that, scores are only reproducible for same batch set.
          *
          *
          * consider_intra_batching=false has no such constrain and slower
@@ -136,6 +137,10 @@ namespace Vocinity
                             const bool consider_intra_batching = false);
         /**
          * @brief is batching perplexity computation of multiple separate contexts.
+         * Note that, scores are only reproducible for same batch set.
+         *
+         * Scores will be similar for same item between single and batch runs but not
+         * same.
          */
         std::vector<Score> score_contexts(const std::vector<std::string>& contexts,
                                           const bool per_char_normalized = true);

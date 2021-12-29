@@ -8,24 +8,18 @@ TEMPLATE= subdirs
 CONFIG += ordered
 
 SUBDIRS+=library
-library.file=qmake/context_scorer-library.pro
-
-#!TEST_OFF{
-#    message("Compiling tests")
-#    SUBDIRS+=test
-#    test.depends=qmake/noiseReductionLibrary.pro
-#}
+library.file=qmake/context-scorer_library.pro
 
 !EXAMPLE_OFF{
-    message("Enabled example program")
+    message("Enabled building example program")
     SUBDIRS+=example
-    example.file=example/context_scorer-example.pro
+    example.file=example/context-scorer_example.pro
     example.depends+=library
 }
 
-#!GST_PLUGIN_OFF{
-#    message("Enabled gst plugin")
-#    SUBDIRS+=gst
-#    gst.file=gst/gst-scorer.pro
-#    gst.depends+=library
-#}
+!SERVER_OFF{
+    message("Enabled building gRPC server")
+    SUBDIRS+=grpc-server
+    grpc-server.file=grpc-server/context-scorer_server.pro
+    grpc-server.depends+=library
+}

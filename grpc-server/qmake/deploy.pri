@@ -7,26 +7,24 @@ RCC_DIR=bin/rcc
 DESTDIR=bin
 
 unix {
-    INCLUDE_DIR=$${DEPL_ROOT}/include/akil/
-
     CONFIG(release, debug|release) {
-        CUDA_AVAILABLE{TARGET = _Context-Scorer_cu}
+        CUDA_AVAILABLE{TARGET = Context-Scorer_Server_cu}
         else{
             CL_AVAILABLE{
-                TARGET = _Context-Scorer_cl
+                TARGET = Context-Scorer_Server_cl
             }else{
-                TARGET = _Context-Scorer_cpu
+                TARGET = Context-Scorer_Server_cpu
             }
         }
     }
 
     CONFIG(debug, debug|release) {
-        CUDA_AVAILABLE{TARGET = _Context-Scorer_cu+dbg}
+        CUDA_AVAILABLE{TARGET = Context-Scorer_Server_cu+dbg}
         else{
             CL_AVAILABLE{
-                TARGET = _Context-Scorer_cl+dbg
+                TARGET = Context-Scorer_Server_cl+dbg
             }else{
-                TARGET = _Context-Scorer_cpu+dbg
+                TARGET = Context-Scorer_Server_cpu+dbg
             }
         }
     }
@@ -67,25 +65,6 @@ unix {
         }
     }
 
-    target.path = $${DEPL_ROOT}/lib/akil/
+    target.path = $${DEPL_ROOT}/bin/akil/
     INSTALLS +=  target
-
-    header.path=$${INCLUDE_DIR}/
-    header.files=$${SRC_DIR}/Context-Scorer.hpp $${SRC_DIR}/Homophonic-Alternatives.hpp
-    INSTALLS +=  header
-
-    REAL_DEPL_ROOT=$$DEPL_ROOT
-    !isEmpty(BUILD_ROOT){
-    REAL_DEPL_ROOT=$$replace(REAL_DEPL_ROOT, $$BUILD_ROOT, /)
-    }
-    escapedDepsRoot=$$re_escape($$quote($$DEPS_ROOT))
-    escapedDeplRoot=$$re_escape($$quote($$REAL_DEPL_ROOT))
-    system('echo "$${LITERAL_HASH} fresh copy" > $${PWD}/depend_context-scorer.pri')
-    pri.path=$${DEPL_ROOT}/share/akil/qmake
-    pri.extra=\
-    cp -r $${PWD}/depend_context-scorer_template.pri $${PWD}/depend_context-scorer.pri;\
-    sed -i "s%DEPS_DIR_HERE%$$escapedDepsRoot%g" $${PWD}/depend_context-scorer.pri; \
-    sed -i "s%DEPL_DIR_HERE%$$escapedDeplRoot%g" $${PWD}/depend_context-scorer.pri;
-    pri.files=$${PWD}/depend_context-scorer.pri
-    INSTALLS +=  pri
 }
