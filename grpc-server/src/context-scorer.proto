@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package Vocinity;
+
+service Context_Scorer_gRPC {
+    rpc say_hi (Knock_Knock) returns (Session_Ticket) {}
+    // You dont need to get_homonyms and give back for scoring.
+    rpc get_homonyms (Homonym_Generation_Query) returns (Homonyms) {}
+    rpc get_best_n_alternatives (Context_Scoring_Query) returns (Context_Score) {}
+}
+
+//--------------------------------
+
+// Say Hello to server with that.
+message Knock_Knock {
+    message Model{
+        // ask it, empty means generic model.
+        string code=1;
+    }
+    repeated Model models_that_you_planning_to_use=1;
+}
+
+// Your client id for this session.
+message Session_Ticket {
+    uint32 id = 1;
+}
+
+//--------------------------------
+
+message Homonym_Generation_Query{
+    /**
+    * Single space between words, I assume there is one of [, . ! ?] symbols at the end.
+    * You can just put dot if there is nothing.
+    */
+    string input=1;
+
+    // higher, more latency. 0 means all. 5 is fine.
+    uint32 max_num_of_best_num_homonyms=2;
+    // higher, memory intensive. max is num of characters in longest word of input. 2 is fine.
+    uint32 max_distance=3;
+
+    // zero based
+    repeated uint32 dismissed_word_indices=4;
+    // case insensitive
+    repeated string dismissed_words=5;
+
+    // Phoneme_Transcription is best.
+    enum Matching_Method {
+       Phoneme_Transcription = 0;
+       Phoneme_Levenshtein = 1;
+       Soundex = 2;
+       Double_Metaphone=4;
+     }
+     Matching_Method matching_method=6;
+
+    string model_code=7;
+}
+
+
+message Homonyms{
+    repeated string alternatives_of_input=1;
+}
+
+//--------------------------------
+
+message Context_Scoring_Query{
+/**
+* You want to get homonyms of input. pre_context is previous text and post_context is after.
+* Model will score pre+each_variation_of_input+post.
+* Less characters, fast inference. More context, better accuracy. Shorter input, better accuracy.
+*/
+    message Scoring_Material{
+        string pre_context=1;
+        Homonym_Generation_Query input=2;
+        string post_context=3;
+        // true is fine
+        bool per_char_normalized=4;
+    }
+    repeated Scoring_Material material=1;
+
+    enum Presets {
+       Fast = 0;
+       Balanced = 1;
+       Accurate = 2;
+     }
+     // Fast is fine
+     Presets preset=2;
+}
+
+message Context_Score{
+
+// Mean is most reliable metric.
+    message Score{
+        string input=1;
+        double production=2;
+        double mean=3;
+        double g_mean=4;
+        double h_mean=5;
+        double negative_log_likelihood=6;
+        double loss=7;
+        double sentence_probability=8;
+    }
+}

@@ -1325,6 +1325,7 @@ Vocinity::Homophonic_Alternative_Composer::get_alternatives(const std::string& r
                                                             const Instructions& instructions,
                                                             const bool parallel)
 {
+  //  const std::lock_guard lock(_mutex);
 #ifdef PROFILE_TIMING
     auto chrono = std::chrono::high_resolution_clock::now();
 #endif

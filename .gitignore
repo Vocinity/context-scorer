@@ -50,3 +50,11 @@ qmake/dummy.cu
 qmake/depend-context_scorer.pri
 
 qmake/depend_context-scorer.pri
+
+grpc-server/src/context-scorer.grpc.pb.cc
+
+grpc-server/src/context-scorer.grpc.pb.h
+
+grpc-server/src/context-scorer.pb.cc
+
+grpc-server/src/context-scorer.pb.h

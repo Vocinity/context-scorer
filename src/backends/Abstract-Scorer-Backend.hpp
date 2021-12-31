@@ -38,9 +38,9 @@ class Vocinity::Context_Scorer::Abstract_Scorer_Backend
     }
 
     static inline c10::Device get_torch_device(
-        const Vocinity::Context_Scorer::Inference_Backend& backend)
+        const Vocinity::Context_Scorer::Inference_Hardware& backend)
     {
-        if(backend == Vocinity::Context_Scorer::Inference_Backend::CUDA)
+        if(backend == Vocinity::Context_Scorer::Inference_Hardware::CUDA)
         {
             return torch::kCUDA;
         }
@@ -75,8 +75,8 @@ class Vocinity::Context_Scorer::Abstract_Scorer_Backend
     virtual int64_t get_stride() = 0;
 
   protected:
-    Vocinity::Context_Scorer::Inference_Backend _device =
-        Vocinity::Context_Scorer::Inference_Backend::CPU;
+    Vocinity::Context_Scorer::Inference_Hardware _device =
+        Vocinity::Context_Scorer::Inference_Hardware::CPU;
     const c10::ScalarType _input_int_range = torch::kInt64;
     torch::Tensor _past;
     Vocinity::Context_Scorer::Precision _precision;
