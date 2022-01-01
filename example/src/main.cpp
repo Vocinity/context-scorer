@@ -284,7 +284,7 @@ main(int argc, char* argv[])
                 << std::endl;
 
             combinations[sentence_order].push_back(akil::string::split(sentence, ' '));
-            for(ushort block_order = 0; block_order < word_combinations.size(); ++block_order)
+            for(uint block_order = 0; block_order < word_combinations.size(); ++block_order)
             {
                 {
                     const auto& word_alternatives = word_combinations.at(block_order);
@@ -298,7 +298,7 @@ main(int argc, char* argv[])
                 if(not instructions.dismissed_word_indices.empty())
                 {
                     if(akil::memory::vector_contains(instructions.dismissed_word_indices,
-                                                     (ushort) block_order))
+                                                     block_order))
                     {
                         continue;
                     }

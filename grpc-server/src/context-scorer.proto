@@ -49,7 +49,7 @@ message Homonym_Generation_Query{
        Phoneme_Transcription = 0;
        Phoneme_Levenshtein = 1;
        Soundex = 2;
-       Double_Metaphone=4;
+       Double_Metaphone=3;
      }
      Matching_Method matching_method=6;
 
@@ -76,7 +76,7 @@ message Context_Scoring_Query{
         // true is fine
         bool per_char_normalized=4;
     }
-    repeated Scoring_Material material=1;
+    Scoring_Material material=1;
 
     enum Presets {
        Fast = 0;
@@ -100,4 +100,5 @@ message Context_Score{
         double loss=7;
         double sentence_probability=8;
     }
+    repeated Score scores=1;
 }

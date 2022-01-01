@@ -141,6 +141,8 @@ namespace Vocinity
          *
          * Scores will be similar for same item between single and batch runs but not
          * same.
+         *
+         * Result vector is in same order with the contexts vector/
          */
         std::vector<Score> score_contexts(const std::vector<std::string>& contexts,
                                           const bool per_char_normalized = true);
