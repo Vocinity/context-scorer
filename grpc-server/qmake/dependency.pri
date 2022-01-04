@@ -41,6 +41,7 @@ unix {
 
 #----------------------------------------------------
 PROTOS+=$$PWD/../src/context-scorer.proto
+CONFIG+=GRPC
 PROTOPATH =
 include(protobuf.pri)
 

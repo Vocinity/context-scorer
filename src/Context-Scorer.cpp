@@ -12,13 +12,13 @@ Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_mod
                                          const Precision precision
 #ifdef CUDA_AVAILABLE
                                          ,
-                                         const Inference_Backend device
+                                         const Inference_Hardware device
 #endif
                                          )
     : _precision(precision)
     , _type(type)
 #ifdef CUDA_AVAILABLE
-    , _device(device == Inference_Backend::CUDA ? torch::kCUDA : torch::kCPU)
+    , _device(device == Inference_Hardware::CUDA ? torch::kCUDA : torch::kCPU)
 #endif
     , _tokenizer(std::make_unique<Tokenizer>(encoding_conf.vocab_file,
                                              encoding_conf.merge_file,
@@ -29,7 +29,7 @@ Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_mod
                                              encoding_conf.mask_token_str))
 {
 #ifdef CUDA_AVAILABLE
-    if(device == Inference_Backend::CUDA)
+    if(device == Inference_Hardware::CUDA)
     {
 #	ifdef ONNX_AVAILABLE
         _inference_backend = std::make_unique<Scorer_ONNX_Backend>(
@@ -75,6 +75,7 @@ Vocinity::Context_Scorer::score_context(const std::string& sentence,
                                         const bool per_char_normalized,
                                         const bool intra_batching)
 {
+    const std::lock_guard lock(_instance_mutex);
     const auto& encoding = encode(sentence
 #ifndef CPP17_AVAILABLE
                                   ,
@@ -441,6 +442,7 @@ std::vector<Vocinity::Context_Scorer::Score>
 Vocinity::Context_Scorer::score_contexts(const std::vector<std::string>& sentences,
                                          const bool per_char_normalized)
 {
+    const std::lock_guard lock(_instance_mutex);
     struct Batch_Metadata
     {
         ulong actual_sequence_length = 0;

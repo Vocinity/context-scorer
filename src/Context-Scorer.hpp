@@ -9,7 +9,7 @@ namespace Vocinity
     class Context_Scorer
     {
       public:
-        enum class Inference_Backend : short { CPU = 0, CUDA = 1 };
+        enum class Inference_Hardware : short { CPU = 0, CUDA = 1 };
         enum Precision : short { FP32 = 0, FP16 = 1 /*, INT8=2*/ };
         enum class GPT_TYPE:short
         {
@@ -100,7 +100,7 @@ namespace Vocinity
                                 const Precision precision                    = Precision::FP32
 #ifdef CUDA_AVAILABLE
                                 ,
-                                const Inference_Backend device = Inference_Backend::CPU
+                                const Inference_Hardware device = Inference_Hardware::CPU
 #endif
         );
 
@@ -141,6 +141,8 @@ namespace Vocinity
          *
          * Scores will be similar for same item between single and batch runs but not
          * same.
+         *
+         * Result vector is in same order with the contexts vector/
          */
         std::vector<Score> score_contexts(const std::vector<std::string>& contexts,
                                           const bool per_char_normalized = true);
@@ -169,8 +171,8 @@ namespace Vocinity
         std::unique_ptr<Abstract_Scorer_Backend> _inference_backend;
         const Precision _precision;
         c10::DeviceType _device = torch::kCPU;
-        std::mutex _instance_mutex;
         std::unique_ptr<Tokenizer> _tokenizer;
+        std::mutex _instance_mutex;
     };
 } // namespace Vocinity
 

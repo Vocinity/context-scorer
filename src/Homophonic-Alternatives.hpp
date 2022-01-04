@@ -55,7 +55,7 @@ namespace Vocinity
          * @brief dismissed_word_indices will be used after splitting words by a single space.
          * Dismissed words wont be processed.
          */
-            std::vector<ushort> dismissed_word_indices;
+            std::vector<uint32_t> dismissed_word_indices;
             /**
          * @brief dismissed_words wont be processed. Case insensitive. Can be used with
          * dismissed_word_indices together but using only one of them for this
@@ -138,6 +138,7 @@ namespace Vocinity
 
       private:
         std::unique_ptr<Homophonic_Alternative_Composer_Impl> _impl;
+        std::mutex _mutex;
     };
 } // namespace Vocinity
 

@@ -1325,6 +1325,7 @@ Vocinity::Homophonic_Alternative_Composer::get_alternatives(const std::string& r
                                                             const Instructions& instructions,
                                                             const bool parallel)
 {
+  //  const std::lock_guard lock(_mutex);
 #ifdef PROFILE_TIMING
     auto chrono = std::chrono::high_resolution_clock::now();
 #endif
@@ -1363,7 +1364,7 @@ Vocinity::Homophonic_Alternative_Composer::get_alternatives(const std::string& r
             tbb::blocked_range<int>(0, words.size()),
             [&](tbb::blocked_range<int> r)
             {
-                for(ushort i = r.begin(); i < r.end(); ++i)
+                for(uint i = r.begin(); i < r.end(); ++i)
                 {
                     const auto& word = words.at(i);
                     if(akil::memory::vector_contains(instructions.dismissed_word_indices, i))
@@ -1385,7 +1386,7 @@ Vocinity::Homophonic_Alternative_Composer::get_alternatives(const std::string& r
     else
 #endif
     {
-        for(ushort order = 0; order < words.size(); ++order)
+        for(uint order = 0; order < words.size(); ++order)
         {
             const auto& word = words.at(order);
             if(akil::memory::vector_contains(instructions.dismissed_word_indices, order))

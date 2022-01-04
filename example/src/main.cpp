@@ -28,8 +28,8 @@ main(int argc, char* argv[])
             Vocinity::Context_Scorer::Tokenizer_Configuration{argv[2], argv[3]},
             Vocinity::Context_Scorer::Precision::FP32,
             std::string(argv[4]) == "--cuda"
-                ? Vocinity::Context_Scorer::Inference_Backend::CUDA
-                : Vocinity::Context_Scorer::Inference_Backend::CPU};
+                ? Vocinity::Context_Scorer::Inference_Hardware::CUDA
+                : Vocinity::Context_Scorer::Inference_Hardware::CPU};
             scorer.flush_cuda_tensor_cache_before_inference();
 
         std::cout << "Instance " << instance_index << " " << argv[1]
@@ -284,7 +284,7 @@ main(int argc, char* argv[])
                 << std::endl;
 
             combinations[sentence_order].push_back(akil::string::split(sentence, ' '));
-            for(ushort block_order = 0; block_order < word_combinations.size(); ++block_order)
+            for(uint block_order = 0; block_order < word_combinations.size(); ++block_order)
             {
                 {
                     const auto& word_alternatives = word_combinations.at(block_order);
@@ -298,7 +298,7 @@ main(int argc, char* argv[])
                 if(not instructions.dismissed_word_indices.empty())
                 {
                     if(akil::memory::vector_contains(instructions.dismissed_word_indices,
-                                                     (ushort) block_order))
+                                                     block_order))
                     {
                         continue;
                     }

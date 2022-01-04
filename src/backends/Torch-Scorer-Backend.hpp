@@ -16,8 +16,8 @@ class Scorer_Torch_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Ba
             Vocinity::Context_Scorer::GPT_TYPE::DistilGPT2
 #ifdef CUDA_AVAILABLE
         ,
-        const Vocinity::Context_Scorer::Inference_Backend device =
-            Vocinity::Context_Scorer::Inference_Backend::CPU
+        const Vocinity::Context_Scorer::Inference_Hardware device =
+            Vocinity::Context_Scorer::Inference_Hardware::CPU
 #endif
     )
     {
@@ -28,7 +28,7 @@ class Scorer_Torch_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Ba
         }
         _scorer_model = torch::jit::load(scorer_model_path.string());
 #ifdef CUDA_AVAILABLE
-        if(device == Vocinity::Context_Scorer::Inference_Backend::CUDA)
+        if(device == Vocinity::Context_Scorer::Inference_Hardware::CUDA)
         {
             _scorer_model.to(torch::kCUDA);
         }

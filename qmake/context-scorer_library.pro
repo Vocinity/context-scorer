@@ -5,6 +5,7 @@ include(deploy.pri)
 DISTFILES += \
     $$PWD/depend_context-scorer_template.pri \
 #    ../.gitlab-ci.yml  \
+    ../scorer.py \
     ../doc/Doxyfile
 
 # bear -o %{sourceDir}/compile_commands.json make %{buildDir}

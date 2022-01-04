@@ -28,8 +28,8 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
                             Vocinity::Context_Scorer::GPT_TYPE::DistilGPT2
 #	ifdef CUDA_AVAILABLE
                         ,
-                        const Vocinity::Context_Scorer::Inference_Backend device =
-                            Vocinity::Context_Scorer::Inference_Backend::CPU
+                        const Vocinity::Context_Scorer::Inference_Hardware device =
+                            Vocinity::Context_Scorer::Inference_Hardware::CPU
 #	endif
                         )
         : _vocab_size(vocab_size)
@@ -64,7 +64,7 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
         //  session_options.EnableProfiling("profiling.prof");
 
 #	ifdef CUDA_AVAILABLE
-        if(device == Vocinity::Context_Scorer::Inference_Backend::CUDA)
+        if(device == Vocinity::Context_Scorer::Inference_Hardware::CUDA)
         {
 #		ifdef TENSOR_RT_AVAILABLE
             OrtTensorRTProviderOptions trt_options;
@@ -134,7 +134,7 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
         _binding = std::make_unique<Ort::IoBinding>(*_session);
 
 #	ifdef CUDA_AVAILABLE
-        if(_device == Vocinity::Context_Scorer::Inference_Backend::CUDA)
+        if(_device == Vocinity::Context_Scorer::Inference_Hardware::CUDA)
         {
             _cuda_memory_info = (Ort::MemoryInfo(
                 "Cuda", OrtAllocatorType::OrtDeviceAllocator, 0, OrtMemTypeDefault));
@@ -246,7 +246,7 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
             (att_mask.cumsum(-1) - 1).masked_fill(att_mask == 0, 1);
 
 #	ifdef CUDA_AVAILABLE
-        auto& memory_info_in_use = _device == Vocinity::Context_Scorer::Inference_Backend::CUDA
+        auto& memory_info_in_use = _device == Vocinity::Context_Scorer::Inference_Hardware::CUDA
                                        ? _cuda_memory_info
                                        : _cpu_memory_info;
 #	else
@@ -357,7 +357,7 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
         _binding->ClearBoundOutputs();
 
 #	ifdef CUDA_AVAILABLE
-        auto& memory_info_in_use = _device == Vocinity::Context_Scorer::Inference_Backend::CUDA
+        auto& memory_info_in_use = _device == Vocinity::Context_Scorer::Inference_Hardware::CUDA
                                        ? _cuda_memory_info
                                        : _cpu_memory_info;
 #	else
