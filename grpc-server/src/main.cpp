@@ -23,8 +23,6 @@ class Context_Scorer_Server
         uint32_t id              = 0;
         bool is_levenshtein_dump = false;
     };
-    using Levenshtein_Homonym_Composer_Configuration   = Homonym_Composer_Configuration;
-    using Phoneme_Based_Homonym_Composer_Configuration = Homonym_Composer_Configuration;
     struct Scorer_Model_Configuration
     {
         uint32_t homonym_composer_configuration_id = 0;
@@ -44,13 +42,13 @@ class Context_Scorer_Server
     public:
         void initialize(
             Unordered_Map<Model_Code,
-                          std::pair<Scorer_Model_Configuration,
-                                    std::pair<Phoneme_Based_Homonym_Composer_Configuration,
-
-                                              Levenshtein_Homonym_Composer_Configuration>>>&&
-                configuration)
+                          std::pair<Scorer_Model_Configuration,Homonym_Composer_Configuration>>&&
+                configuration,const std::string generic_model_code="generic")
         {
             _model_configurations = std::move(configuration);
+            _generic_model_code=generic_model_code;
+
+            create_processors(_generic_model_code);
         }
 
       public:
@@ -66,7 +64,7 @@ class Context_Scorer_Server
                 const auto wanted_model =
                     request->models_that_you_planning_to_use(model_order);
                 const std::string model_code =
-                    wanted_model.code().empty() ? "generic" : wanted_model.code();
+                    wanted_model.code().empty() ? _generic_model_code : wanted_model.code();
 
                 if(not _model_configurations.contains(model_code))
                 {
@@ -115,13 +113,9 @@ class Context_Scorer_Server
                 == Vocinity::Homophonic_Alternative_Composer::Matching_Method::
                     Phoneme_Levenshtein;
 
-            const auto& homonym_model_configuration =
-                is_levenshtein ? _model_configurations.at(model_code).second.second
-                               : _model_configurations.at(model_code).second.first;
+            const auto& homonym_model_configuration =_model_configurations.at(model_code).second;
 
-            auto composer = is_levenshtein
-                                ? _homonym_composers.at(homonym_model_configuration.id).second
-                                : _homonym_composers.at(homonym_model_configuration.id).first;
+            auto composer =  _homonym_composers.at(homonym_model_configuration.id);
 
             const auto& combinations = run_homonoym_composing(input, composer, instructions);
 
@@ -197,13 +191,9 @@ class Context_Scorer_Server
                 == Vocinity::Homophonic_Alternative_Composer::Matching_Method::
                     Phoneme_Levenshtein;
 
-            const auto& homonym_model_configuration =
-                is_levenshtein ? _model_configurations.at(model_code).second.second
-                               : _model_configurations.at(model_code).second.first;
+            const auto& homonym_model_configuration = _model_configurations.at(model_code).second;
 
-            auto composer = is_levenshtein
-                                ? _homonym_composers.at(homonym_model_configuration.id).second
-                                : _homonym_composers.at(homonym_model_configuration.id).first;
+            auto composer =  _homonym_composers.at(homonym_model_configuration.id);
 
 
             const auto& combinations = run_homonoym_composing(input, composer, instructions);
@@ -221,7 +211,7 @@ class Context_Scorer_Server
 
                     alternative.resize(alternative.size() - 1);
                     alternative += ".";
-                    const auto full_statement =
+                    auto full_statement =
                         material.pre_context() + alternative + material.post_context();
 
 #ifdef CPP17_AVAILABLE
@@ -464,15 +454,13 @@ class Context_Scorer_Server
         static inline std::mutex _initialization_mutex;
         Unordered_Map<Model_Code, std::shared_ptr<Vocinity::Context_Scorer>> _scorers;
         Unordered_Map<uint32_t,
-                      std::pair<std::shared_ptr<Vocinity::Homophonic_Alternative_Composer>,
-                                std::shared_ptr<Vocinity::Homophonic_Alternative_Composer>>>
+                                std::shared_ptr<Vocinity::Homophonic_Alternative_Composer>>
             _homonym_composers;
         Unordered_Map<std::string, std::vector<uint32_t>> _clients;
         Unordered_Map<Model_Code,
-                      std::pair<Scorer_Model_Configuration,
-                                std::pair<Phoneme_Based_Homonym_Composer_Configuration,
-                                          Levenshtein_Homonym_Composer_Configuration>>>
+                      std::pair<Scorer_Model_Configuration,Homonym_Composer_Configuration>>
             _model_configurations;
+        std::string _generic_model_code;
     };
 };
 
@@ -528,7 +516,7 @@ main(int argc, char* argv[])
 
     Context_Scorer_Server::Homonym_Composer_Configuration
         homonym_pho_based_composer_configuration;
-    homonym_pho_based_composer_configuration.id              = 0;
+  //  homonym_pho_based_composer_configuration.id              = 0;
     homonym_pho_based_composer_configuration.dictionary_path = phonetics_dictionary;
     homonym_pho_based_composer_configuration.max_distance    = 2;
     homonym_pho_based_composer_configuration.matching_method =
@@ -538,22 +526,21 @@ main(int argc, char* argv[])
         "similarity_map-cmudict07b-dist2-phoneme_transcription.cbor";
     homonym_pho_based_composer_configuration.is_levenshtein_dump=false;
 
-    Context_Scorer_Server::Homonym_Composer_Configuration
-        homonym_lev_based_composer_configuration;
-    homonym_lev_based_composer_configuration.id              = 0;
-    homonym_lev_based_composer_configuration.dictionary_path = phonetics_dictionary;
-    homonym_lev_based_composer_configuration.max_distance    = 2;
-    homonym_lev_based_composer_configuration.matching_method =
-        Vocinity::Homophonic_Alternative_Composer::Matching_Method::Phoneme_Levenshtein;
-    homonym_lev_based_composer_configuration.precomputed_phoneme_similarity_map =
-        "/opt/cloud/projects/vocinity/models/context-scorer/"
-        "similarity_map-cmudict07b-dist2-phoneme_levenshtein.cbor";
-    homonym_lev_based_composer_configuration.is_levenshtein_dump=true;
-
+//    Context_Scorer_Server::Homonym_Composer_Configuration
+//        homonym_lev_based_composer_configuration;
+//    homonym_lev_based_composer_configuration.id              = 0;
+//    homonym_lev_based_composer_configuration.dictionary_path = phonetics_dictionary;
+//    homonym_lev_based_composer_configuration.max_distance    = 2;
+//    homonym_lev_based_composer_configuration.matching_method =
+//        Vocinity::Homophonic_Alternative_Composer::Matching_Method::Phoneme_Levenshtein;
+//    homonym_lev_based_composer_configuration.precomputed_phoneme_similarity_map =
+//        "/opt/cloud/projects/vocinity/models/context-scorer/"
+//        "similarity_map-cmudict07b-dist2-phoneme_levenshtein.cbor";
+//    homonym_lev_based_composer_configuration.is_levenshtein_dump=true;
 
 
     Context_Scorer_Server::Scorer_Model_Configuration generic_model_configuration;
-    generic_model_configuration.homonym_composer_configuration_id = 0;
+    generic_model_configuration.homonym_composer_configuration_id = homonym_pho_based_composer_configuration.id;
     generic_model_configuration.model_path                        = argv[1];
     generic_model_configuration.hardware =
         std::string(argv[4]) == "--cuda" ? Vocinity::Context_Scorer::Inference_Hardware::CUDA
@@ -567,10 +554,8 @@ main(int argc, char* argv[])
 
     Unordered_Map<Context_Scorer_Server::Model_Code,
                   std::pair<Context_Scorer_Server::Scorer_Model_Configuration,
-                            std::pair<Context_Scorer_Server::Phoneme_Based_Homonym_Composer_Configuration,
-                                      Context_Scorer_Server::Levenshtein_Homonym_Composer_Configuration>>> configuration;
-    configuration["generic"]={generic_model_configuration,{homonym_pho_based_composer_configuration,
-                        homonym_lev_based_composer_configuration}};
+            Context_Scorer_Server::Homonym_Composer_Configuration>> configuration;
+    configuration["generic"]={generic_model_configuration,homonym_pho_based_composer_configuration};
 
     Context_Scorer_Server::Service service;
     service.initialize(std::move(configuration));
