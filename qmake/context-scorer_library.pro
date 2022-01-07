@@ -5,6 +5,7 @@ include(deploy.pri)
 DISTFILES += \
     $$PWD/depend_context-scorer_template.pri \
 #    ../.gitlab-ci.yml  \
+    ../conan/consume_and_deploy_deps.sh \
     ../scorer.py \
     ../doc/Doxyfile
 

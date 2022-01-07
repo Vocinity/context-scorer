@@ -2,7 +2,7 @@
 ###### Author: [@isgursoy](https://www.github.com/isgursoy)
 ###### **BEWARE**: You have to donate $5 to [charities](https://donatenow.wfp.org/wfp/~my-donation) for each Batman call without properly following readme.
 
-Repository contains lib_Context_Scorer, and Context_Scorer (example) executable which is demonstrating context scoring.
+Repository contains lib_Context-Scorer, Context-Scorer (example) executable which is demonstrating context scoring and Context-Score_Server (grpc service).
 
 You don't have time for details? Jump right to the [example building procedure.](https://github.com/Vocinity/context-scorer#example-building-procedure)
 
@@ -146,7 +146,7 @@ Release build of the commit 6691d7dcfeb5076db749a0cba25b48cfe5395379@branch and 
 DEPL_ROOT/lib/akil/lib_Context-Scorer_cpu.so
 DEPL_ROOT/lib/akil/lib_Context-Scorer_cpu.so.2021-08-05_19:02@6691d7dcfeb5076db749a0cba25b48cfe5395379
 DEPL_ROOT/lib/akil/lib_Context-Scorer_cpu.so.2021-08-05_19:02@6691d7dcfeb5076db749a0cba25b48cfe5395379.0
-DEPL_ROOT/lib/akil/lib_Context-Scorer.so.2021-08-05_19:02@6691d7dcfeb5076db749a0cba25b48cfe5395379.0.0
+DEPL_ROOT/lib/akil/lib_Context-Scorer_cpu.so.2021-08-05_19:02@6691d7dcfeb5076db749a0cba25b48cfe5395379.0.0
 
 DEPL_ROOT/include/akil/Context_Scorer.hpp
 

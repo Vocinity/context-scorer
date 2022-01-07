@@ -308,7 +308,6 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
         const auto& shift_labels = labels.index({"...", Slice(1, None)}).contiguous();
         const auto loss          = torch::nn::functional::cross_entropy(
             shift_logits.view({-1, shift_logits.size(-1)}), shift_labels.view({-1}));
-
         return {loss, logits, present_states};
     }
 

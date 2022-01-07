@@ -151,20 +151,6 @@ unix{
         }
     }
 
-    !CUDA_OFF{
-        if(exists("/usr/local/cuda/version.txt")|exists("/usr/local/cuda/version.json")){
-            message("FOUND CUDA")
-            DEFINES+=CUDA_AVAILABLE
-            CONFIG+=CUDA_AVAILABLE
-            enableExtension(THRUST)
-            enableExtension(TENSOR_RT)
-            enableExtension(CUDNN)
-            enableExtension(ONNX)
-            #enableExtension(LIGHTSEQ)
-            #enableExtension(FASTER_TRANSFORMER)
-        }
-    }
-
     Release:include(conan.pri)
     Debug:include(conan.pri)
 
@@ -172,7 +158,7 @@ unix{
     QT -= core gui qml quickcontrols2 quickcontrols qtquickcompiler
     CONFIG -= qt
     enableExtension(JSON)
-    extensionProcessor(PYSTRING)
+    #extensionProcessor(PYSTRING)
     extensionProcessor(SOUNDEX)
     extensionProcessor(DOUBLE_METAPHONE)
     extensionProcessor(LEVENSHTEIN_SSE)
@@ -181,6 +167,22 @@ unix{
     enableExtension(MAGIC_ENUM)
     extensionProcessor(RANGE_V3)
     enableExtension(TORCH)
+
+    !CUDA_OFF{
+        if(exists("/usr/local/cuda/version.txt")|exists("/usr/local/cuda/version.json")){
+            message("FOUND CUDA")
+            DEFINES+=CUDA_AVAILABLE
+            CONFIG+=CUDA_AVAILABLE
+            FASTER_TRANSFORMER_AVAILABLE{
+                enableExtension(THRUST)
+            }
+            enableExtension(TENSOR_RT)
+            enableExtension(CUDNN)
+            enableExtension(ONNX)
+            #enableExtension(LIGHTSEQ)
+            #enableExtension(FASTER_TRANSFORMER)
+        }
+    }
 
     #    CONFIG(debug, debug|release) {
     #    CONFIG += sanitizer

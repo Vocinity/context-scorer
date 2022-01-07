@@ -4,18 +4,18 @@ unix {
     }
     else{
         GRPC{
-            message("GRPC protobuf extension enabled. Expected to be found in path: "$$system(which grpc_cpp_plugin)))
-            LIBS+= -lgrpc -lgrpc++ -lgrpc++_reflection -lgrpc++_error_details -lgrpc++_unsecure -lgrpc_cronet
+            message("GRPC protobuf extension enabled. Expected to be found in path: "$${DEPS_ROOT}/bin/grpc_cpp_plugin)
+            CENTOS{LIBS+=-lgrpc++}
+            else{LIBS+= -L$${DEPS_ROOT}/lib/grpc -l:libgrpc++.so}
         }
-        CENTOS{
-
-        }else{
-            LIBS+= -L/usr/lib/x86_64-linux-gnu/ -l:libprotobuf.so -lprotobuf-lite -lprotoc
+        CENTOS{LIBS+=-lprotobuf.so -lprotoc}
+        else{
+            LIBS+= -L$${DEPS_ROOT}/lib -l:libprotobuf.so.3.18.0.0 -l:libprotoc.so.3.18.0.0
         }
 
         CONFIG+=PROTO_PROCESSING
-        isEmpty(PROTOC):PROTOC = $$system(which protoc)
-        message("protoc ($$system(which protoc)) will run for $${PROTOS}")
+        isEmpty(PROTOC):PROTOC = $${DEPS_ROOT}/bin/protoc #$$system(which protoc)
+        message("protoc $$PROTOC will run for $${PROTOS}")
 
         for(p1, PROTOS):PROTOPATH += $$clean_path($$dirname(p1))
         for(p2, PROTOPATH):PROTOPATHS += --proto_path=$${p2}
@@ -25,7 +25,7 @@ unix {
         protobuf_decl.output = ${QMAKE_FILE_IN_PATH}/${QMAKE_FILE_BASE}.pb.h
         GRPC{
             protobuf_decl.commands = $$PROTOC --cpp_out=${QMAKE_FILE_IN_PATH} $${PROTOPATHS} ${QMAKE_FILE_BASE}.proto\
-            --grpc_out=${QMAKE_FILE_IN_PATH} --plugin=protoc-gen-grpc=$$system(which grpc_cpp_plugin)
+            --grpc_out=${QMAKE_FILE_IN_PATH} --plugin=protoc-gen-grpc=$${DEPS_ROOT}/bin/grpc_cpp_plugin#$$system(which grpc_cpp_plugin)
         }else{
             protobuf_decl.commands = $$PROTOC --cpp_out=${QMAKE_FILE_IN_PATH} $${PROTOPATHS} ${QMAKE_FILE_BASE}.proto
         }
