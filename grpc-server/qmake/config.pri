@@ -171,7 +171,7 @@ unix{
     QT -= core gui qml quickcontrols2 quickcontrols qtquickcompiler
     CONFIG -= qt
     enableExtension(JSON)
-    extensionProcessor(PYSTRING)
+    #extensionProcessor(PYSTRING)
     extensionProcessor(SOUNDEX)
     extensionProcessor(DOUBLE_METAPHONE)
     extensionProcessor(LEVENSHTEIN_SSE)

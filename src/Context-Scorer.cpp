@@ -82,12 +82,18 @@ Vocinity::Context_Scorer::score_context(const std::string& sentence,
                                   sentence.size() >= std::thread::hardware_concurrency() * 1024
 #endif
     );
+    Score score;
     if(intra_batching
        and (encoding.input_ids.size(-1) > _inference_backend->get_max_sequence_length()))
     {
-        return score_long_context(encoding, per_char_normalized);
+        score = score_long_context(encoding, per_char_normalized);
     }
-    return score_short_context(encoding, per_char_normalized);
+    else
+    {
+        score = score_short_context(encoding, per_char_normalized);
+    }
+    score.utterance = sentence;
+    return score;
 }
 
 Vocinity::Context_Scorer::Score
@@ -525,6 +531,7 @@ Vocinity::Context_Scorer::score_contexts(const std::vector<std::string>& sentenc
     for(uint batch_order = 0; batch_order < batch_metadata.size(); ++batch_order)
     {
         Score score;
+        score.utterance = sentences.at(batch_order);
 
         const auto& metadata = batch_metadata.at(batch_order);
         if(batch_payload.logits.numel())

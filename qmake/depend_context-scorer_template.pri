@@ -31,7 +31,10 @@ unix {
             }else{
                 LIBS+= -L/usr/lib/x86_64-linux-gnu/hdf5/serial/ -lhdf5
             }
-            LIBS+= -L$${MY_DEPS_ROOT}/lib/ -l:libprotobuf.so.30.0.1 -l:libprotobuf-lite.so.30.0.1 -l:libprotoc.so.30.0.1
+            CENTOS{LIBS+=-lprotobuf.so -lprotoc}
+            else{
+                LIBS+= -L$${MY_DEPS_ROOT}/lib -l:libprotobuf.so.3.18.0.0 -l:libprotoc.so.3.18.0.0
+            }
         }
     }else{
         CONFIG += conan_basic_setup

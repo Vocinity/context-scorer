@@ -39,14 +39,15 @@ class Context_Scorer_Server
   public:
     class Service final : public Vocinity::Context_Scorer_gRPC::Service
     {
-    public:
+      public:
         void initialize(
             Unordered_Map<Model_Code,
-                          std::pair<Scorer_Model_Configuration,Homonym_Composer_Configuration>>&&
-                configuration,const std::string generic_model_code="generic")
+                          std::pair<Scorer_Model_Configuration,
+                                    Homonym_Composer_Configuration>>&& configuration,
+            const std::string generic_model_code = "generic")
         {
             _model_configurations = std::move(configuration);
-            _generic_model_code=generic_model_code;
+            _generic_model_code   = generic_model_code;
 
             create_processors(_generic_model_code);
         }
@@ -54,7 +55,7 @@ class Context_Scorer_Server
       public:
         virtual grpc::Status say_hi(grpc::ServerContext* context,
                                     const Vocinity::Knock_Knock* request,
-                                    Vocinity::Session_Ticket* reply) override
+                                    Vocinity::Nothing*) override
         {
             const uint32_t client_id =
                 akil::functional::getDefinitelyUniqueId<uint32_t>("grpc_client_id");
@@ -73,23 +74,20 @@ class Context_Scorer_Server
                 }
 
                 create_processors(model_code);
-
-                if(not akil::memory::vector_contains(_clients.at(model_code), client_id))
-                {
-                    _clients[model_code].push_back(client_id);
-                }
             }
 
-            reply->set_id(client_id);
-
-            return grpc::Status::OK;
+            return wanted_models_size
+                       ? grpc::Status::OK
+                       : grpc::Status(grpc::StatusCode::NOT_FOUND,
+                                      "You should subscribe at least one model");
         }
 
         virtual grpc::Status get_homonyms(grpc::ServerContext* context,
                                           const Vocinity::Homonym_Generation_Query* request,
                                           Vocinity::Homonyms* reply) override
         {
-            const auto& model_code = request->model_code();
+            const std::string model_code =
+                request->model_code().empty() ? _generic_model_code : request->model_code();
 
             if(not _model_configurations.contains(model_code))
             {
@@ -113,11 +111,20 @@ class Context_Scorer_Server
                 == Vocinity::Homophonic_Alternative_Composer::Matching_Method::
                     Phoneme_Levenshtein;
 
-            const auto& homonym_model_configuration =_model_configurations.at(model_code).second;
+            const auto& homonym_model_configuration =
+                _model_configurations.at(model_code).second;
 
-            auto composer =  _homonym_composers.at(homonym_model_configuration.id);
+            auto composer = _homonym_composers.at(homonym_model_configuration.id);
 
-            const auto& combinations = run_homonoym_composing(input, composer, instructions);
+            std::vector<std::vector<std::vector<std::string>>> combinations;
+            try
+            {
+                combinations = run_homonoym_composing(input, composer, instructions);
+            }
+            catch(const std::exception& e)
+            {
+                return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
+            }
 
             for(const auto& sentence : combinations)
             {
@@ -166,7 +173,9 @@ class Context_Scorer_Server
         {
             const auto& material             = request->material();
             const auto homonym_query_request = material.input();
-            const auto& model_code           = homonym_query_request.model_code();
+            const std::string model_code     = homonym_query_request.model_code().empty()
+                                                   ? _generic_model_code
+                                                   : homonym_query_request.model_code();
 
             if(not _model_configurations.contains(model_code))
             {
@@ -184,19 +193,25 @@ class Context_Scorer_Server
                 static_cast<Vocinity::Homophonic_Alternative_Composer::Matching_Method>(
                     homonym_query_request.matching_method())};
 
+            //			const bool is_levenshtein =
+            //			    static_cast<Vocinity::Homophonic_Alternative_Composer::Matching_Method>(
+            //			        homonym_query_request.matching_method())
+            //			    == Vocinity::Homophonic_Alternative_Composer::Matching_Method::
+            //			        Phoneme_Levenshtein;
 
-            const bool is_levenshtein =
-                static_cast<Vocinity::Homophonic_Alternative_Composer::Matching_Method>(
-                    homonym_query_request.matching_method())
-                == Vocinity::Homophonic_Alternative_Composer::Matching_Method::
-                    Phoneme_Levenshtein;
+            const auto& homonym_model_configuration =
+                _model_configurations.at(model_code).second;
 
-            const auto& homonym_model_configuration = _model_configurations.at(model_code).second;
-
-            auto composer =  _homonym_composers.at(homonym_model_configuration.id);
-
-
-            const auto& combinations = run_homonoym_composing(input, composer, instructions);
+            auto composer = _homonym_composers.at(homonym_model_configuration.id);
+            std::vector<std::vector<std::vector<std::string>>> combinations;
+            try
+            {
+                combinations = run_homonoym_composing(input, composer, instructions);
+            }
+            catch(const std::exception& e)
+            {
+                return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
+            }
 
             std::vector<std::string> queries;
             for(const auto& sentence : combinations)
@@ -210,9 +225,16 @@ class Context_Scorer_Server
                     }
 
                     alternative.resize(alternative.size() - 1);
-                    alternative += ".";
-                    auto full_statement =
-                        material.pre_context() + alternative + material.post_context();
+                    alternative+=".";
+                    std::string full_statement=alternative;
+                    if(not material.pre_context().empty())
+                    {
+                        full_statement=material.pre_context() + " "+full_statement;
+                    }
+                    if(not material.post_context().empty())
+                    {
+                        full_statement+=" "+material.post_context();
+                    }
 
 #ifdef CPP17_AVAILABLE
                     std::transform(std::execution::unseq,
@@ -240,13 +262,33 @@ class Context_Scorer_Server
             if(not queries.empty())
             {
                 auto scorer = _scorers.at(model_code);
-                const auto& results =
-                    do_scoring(queries, scorer, material.per_char_normalized());
+                std::vector<Vocinity::Context_Scorer::Score> results;
+                try
+                {
+                    results = do_scoring(queries, scorer, material.per_char_normalized());
+                }
+                catch(const std::exception& e)
+                {
+                    return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
+                }
+
+#ifdef CPP17_AVAILABLE
+                std::sort(std::execution::unseq,
+                          results.begin(),
+                          results.end(),
+                          [](const auto& one, const auto& another) -> bool
+                          { return one.mean > another.mean; });
+#else
+                std::sort(results.begin(),
+                          results.end(),
+                          [](const auto& one, const auto& another) -> bool
+                          { return first_score.mean > second_score.mean; });
+#endif
                 for(uint result_order = 0; result_order < results.size(); ++result_order)
                 {
                     const auto& result = results.at(result_order);
                     auto score         = reply->add_scores();
-                    score->set_input(queries.at(result_order));
+                    score->set_input(result.utterance);
                     score->set_production(result.production);
                     score->set_mean(result.mean);
                     score->set_g_mean(result.g_mean);
@@ -279,7 +321,7 @@ class Context_Scorer_Server
                     raw_words = akil::string::split(sentence, ' ');
                 }
                 auto chrono = std::chrono::high_resolution_clock::now();
-                const auto word_combinations =
+                const auto& word_combinations =
                     composer->get_alternatives(sentence, instructions, true);
                 const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
                                           std::chrono::high_resolution_clock::now() - chrono)
@@ -453,12 +495,10 @@ class Context_Scorer_Server
       private:
         static inline std::mutex _initialization_mutex;
         Unordered_Map<Model_Code, std::shared_ptr<Vocinity::Context_Scorer>> _scorers;
-        Unordered_Map<uint32_t,
-                                std::shared_ptr<Vocinity::Homophonic_Alternative_Composer>>
+        Unordered_Map<uint32_t, std::shared_ptr<Vocinity::Homophonic_Alternative_Composer>>
             _homonym_composers;
-        Unordered_Map<std::string, std::vector<uint32_t>> _clients;
         Unordered_Map<Model_Code,
-                      std::pair<Scorer_Model_Configuration,Homonym_Composer_Configuration>>
+                      std::pair<Scorer_Model_Configuration, Homonym_Composer_Configuration>>
             _model_configurations;
         std::string _generic_model_code;
     };
@@ -516,7 +556,7 @@ main(int argc, char* argv[])
 
     Context_Scorer_Server::Homonym_Composer_Configuration
         homonym_pho_based_composer_configuration;
-  //  homonym_pho_based_composer_configuration.id              = 0;
+    //  homonym_pho_based_composer_configuration.id              = 0;
     homonym_pho_based_composer_configuration.dictionary_path = phonetics_dictionary;
     homonym_pho_based_composer_configuration.max_distance    = 2;
     homonym_pho_based_composer_configuration.matching_method =
@@ -524,24 +564,25 @@ main(int argc, char* argv[])
     homonym_pho_based_composer_configuration.precomputed_phoneme_similarity_map =
         "/opt/cloud/projects/vocinity/models/context-scorer/"
         "similarity_map-cmudict07b-dist2-phoneme_transcription.cbor";
-    homonym_pho_based_composer_configuration.is_levenshtein_dump=false;
+    homonym_pho_based_composer_configuration.is_levenshtein_dump = false;
 
-//    Context_Scorer_Server::Homonym_Composer_Configuration
-//        homonym_lev_based_composer_configuration;
-//    homonym_lev_based_composer_configuration.id              = 0;
-//    homonym_lev_based_composer_configuration.dictionary_path = phonetics_dictionary;
-//    homonym_lev_based_composer_configuration.max_distance    = 2;
-//    homonym_lev_based_composer_configuration.matching_method =
-//        Vocinity::Homophonic_Alternative_Composer::Matching_Method::Phoneme_Levenshtein;
-//    homonym_lev_based_composer_configuration.precomputed_phoneme_similarity_map =
-//        "/opt/cloud/projects/vocinity/models/context-scorer/"
-//        "similarity_map-cmudict07b-dist2-phoneme_levenshtein.cbor";
-//    homonym_lev_based_composer_configuration.is_levenshtein_dump=true;
+    //    Context_Scorer_Server::Homonym_Composer_Configuration
+    //        homonym_lev_based_composer_configuration;
+    //    homonym_lev_based_composer_configuration.id              = 0;
+    //    homonym_lev_based_composer_configuration.dictionary_path = phonetics_dictionary;
+    //    homonym_lev_based_composer_configuration.max_distance    = 2;
+    //    homonym_lev_based_composer_configuration.matching_method =
+    //        Vocinity::Homophonic_Alternative_Composer::Matching_Method::Phoneme_Levenshtein;
+    //    homonym_lev_based_composer_configuration.precomputed_phoneme_similarity_map =
+    //        "/opt/cloud/projects/vocinity/models/context-scorer/"
+    //        "similarity_map-cmudict07b-dist2-phoneme_levenshtein.cbor";
+    //    homonym_lev_based_composer_configuration.is_levenshtein_dump=true;
 
 
     Context_Scorer_Server::Scorer_Model_Configuration generic_model_configuration;
-    generic_model_configuration.homonym_composer_configuration_id = homonym_pho_based_composer_configuration.id;
-    generic_model_configuration.model_path                        = argv[1];
+    generic_model_configuration.homonym_composer_configuration_id =
+        homonym_pho_based_composer_configuration.id;
+    generic_model_configuration.model_path = argv[1];
     generic_model_configuration.hardware =
         std::string(argv[4]) == "--cuda" ? Vocinity::Context_Scorer::Inference_Hardware::CUDA
                                          : Vocinity::Context_Scorer::Inference_Hardware::CPU;
@@ -551,11 +592,12 @@ main(int argc, char* argv[])
     generic_model_configuration.type = Vocinity::Context_Scorer::GPT_TYPE::DistilGPT2;
 
 
-
     Unordered_Map<Context_Scorer_Server::Model_Code,
                   std::pair<Context_Scorer_Server::Scorer_Model_Configuration,
-            Context_Scorer_Server::Homonym_Composer_Configuration>> configuration;
-    configuration["generic"]={generic_model_configuration,homonym_pho_based_composer_configuration};
+                            Context_Scorer_Server::Homonym_Composer_Configuration>>
+        configuration;
+    configuration["generic"] = {generic_model_configuration,
+                                homonym_pho_based_composer_configuration};
 
     Context_Scorer_Server::Service service;
     service.initialize(std::move(configuration));

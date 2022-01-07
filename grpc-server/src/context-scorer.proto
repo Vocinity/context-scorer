@@ -3,11 +3,13 @@ syntax = "proto3";
 package Vocinity;
 
 service Context_Scorer_gRPC {
-    rpc say_hi (Knock_Knock) returns (Session_Ticket) {}
+    rpc say_hi (Knock_Knock) returns (Nothing) {}
     // You dont need to get_homonyms and give back for scoring.
     rpc get_homonyms (Homonym_Generation_Query) returns (Homonyms) {}
     rpc get_best_n_alternatives (Context_Scoring_Query) returns (Context_Score) {}
 }
+
+message Nothing {}
 
 //--------------------------------
 
@@ -18,11 +20,6 @@ message Knock_Knock {
         string code=1;
     }
     repeated Model models_that_you_planning_to_use=1;
-}
-
-// Your client id for this session.
-message Session_Ticket {
-    uint32 id = 1;
 }
 
 //--------------------------------

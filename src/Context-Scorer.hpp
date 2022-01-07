@@ -61,6 +61,7 @@ namespace Vocinity
             double loss = 0;
             /// global for batch, relatively unreliable metric when used for individual elements of a batch
             double sentence_probability = 0;
+            std::string utterance;
         };
 
         struct Tokenizer_Configuration
