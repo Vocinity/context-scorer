@@ -4,9 +4,13 @@ unix {
     }
     else{
         GRPC{
+            CENTOS{
+                message("GRPC protobuf extension enabled. Expected to be found in path: "$$system(which grpc_cpp_plugin))
+                LIBS+=-lgrpc++
+            }
+            else{
             message("GRPC protobuf extension enabled. Expected to be found in path: "$${DEPS_ROOT}/bin/grpc_cpp_plugin)
-            CENTOS{LIBS+=-lgrpc++}
-            else{LIBS+= -L$${DEPS_ROOT}/lib/grpc -l:libgrpc++.so}
+            LIBS+= -L$${DEPS_ROOT}/lib/grpc -l:libgrpc++.so}
         }
         CENTOS{LIBS+=-lprotobuf.so -lprotoc}
         else{
@@ -14,7 +18,8 @@ unix {
         }
 
         CONFIG+=PROTO_PROCESSING
-        isEmpty(PROTOC):PROTOC = $${DEPS_ROOT}/bin/protoc #$$system(which protoc)
+        CENTOS{isEmpty(PROTOC):PROTOC = $$system(which protoc)}
+        else{isEmpty(PROTOC):PROTOC = $${DEPS_ROOT}/bin/protoc}
         message("protoc $$PROTOC will run for $${PROTOS}")
 
         for(p1, PROTOS):PROTOPATH += $$clean_path($$dirname(p1))
@@ -24,8 +29,14 @@ unix {
         protobuf_decl.input = PROTOS
         protobuf_decl.output = ${QMAKE_FILE_IN_PATH}/${QMAKE_FILE_BASE}.pb.h
         GRPC{
-            protobuf_decl.commands = $$PROTOC --cpp_out=${QMAKE_FILE_IN_PATH} $${PROTOPATHS} ${QMAKE_FILE_BASE}.proto\
-            --grpc_out=${QMAKE_FILE_IN_PATH} --plugin=protoc-gen-grpc=$${DEPS_ROOT}/bin/grpc_cpp_plugin#$$system(which grpc_cpp_plugin)
+            CENTOS{
+                protobuf_decl.commands = $$PROTOC --cpp_out=${QMAKE_FILE_IN_PATH} $${PROTOPATHS} ${QMAKE_FILE_BASE}.proto\
+                --grpc_out=${QMAKE_FILE_IN_PATH} --plugin=protoc-gen-grpc=$$system(which grpc_cpp_plugin)
+            }
+            else{
+                protobuf_decl.commands = $$PROTOC --cpp_out=${QMAKE_FILE_IN_PATH} $${PROTOPATHS} ${QMAKE_FILE_BASE}.proto\
+                --grpc_out=${QMAKE_FILE_IN_PATH} --plugin=protoc-gen-grpc=$${DEPS_ROOT}/bin/grpc_cpp_plugin
+            }
         }else{
             protobuf_decl.commands = $$PROTOC --cpp_out=${QMAKE_FILE_IN_PATH} $${PROTOPATHS} ${QMAKE_FILE_BASE}.proto
         }
