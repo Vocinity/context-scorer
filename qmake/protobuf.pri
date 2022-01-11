@@ -12,7 +12,7 @@ unix {
             message("GRPC protobuf extension enabled. Expected to be found in path: "$${DEPS_ROOT}/bin/grpc_cpp_plugin)
             LIBS+= -L$${DEPS_ROOT}/lib/grpc -l:libgrpc++.so}
         }
-        CENTOS{LIBS+=-lprotobuf -lprotoc}
+        CENTOS{LIBS+= -L/usr/lib64/ -lprotobuf -lprotoc}
         else{
             LIBS+= -L$${DEPS_ROOT}/lib -l:libprotobuf.so.3.18.0.0 -l:libprotoc.so.3.18.0.0
         }
