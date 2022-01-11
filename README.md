@@ -186,99 +186,16 @@ make uninstall
 
 * Get some dependencies from yum
 ```bash
-sudo yum install sox-devel python3-devel qt5-qtbase-devel tbb-devel
+sudo yum install python3-devel qt5-qtbase-devel tbb-devel
 ```
-* Torch 1.9+ is in `/opt/local/include/torch`and `/opt/local/lib/torch`. `/opt/local` is our DEPS_ROOT. [aMisc Customization](https://github.com/Vocinity/aMisc#customization) is talking about it in dependencies perspective.
-```
-/opt/local/include/torch
-├── ATen
-├── c10
-├── c10d
-├── caffe2
-├── nvfuser_resources
-├── pybind11
-├── sleef.h
-├── TH
-├── THC
-├── THCUNN
-└── torch
-10 directories, 1 file
-```
-```
-/opt/local/lib/torch
-├── libasmjit.a
-├── libbackend_with_compiler.so
-├── libbenchmark.a
-├── libbenchmark_main.a
-├── libc10_cuda.so
-├── libc10d.a
-├── libc10d_cuda_test.so
-├── libc10.so
-├── libcaffe2_detectron_ops_gpu.so
-├── libcaffe2_module_test_dynamic.so
-├── libcaffe2_nvrtc.so
-├── libcaffe2_observers.so
-├── libCaffe2_perfkernels_avx2.a
-├── libCaffe2_perfkernels_avx512.a
-├── libCaffe2_perfkernels_avx.a
-├── libcaffe2_protos.a
-├── libclog.a
-├── libcpuinfo.a
-├── libcpuinfo_internals.a
-├── libcudart-6d56b25a.so.11.0
-├── libcudart.so.11.0 -> libcudart-6d56b25a.so.11.0
-├── libdnnl.a
-├── libfbgemm.a
-├── libfmt.a
-├── libfoxi_loader.a
-├── libgloo.a
-├── libgloo_cuda.a
-├── libgmock.a
-├── libgmock_main.a
-├── libgomp-75eea7e8.so.1
-├── libgomp.so.1 -> libgomp-75eea7e8.so.1
-├── libgtest.a
-├── libgtest_main.a
-├── libjitbackend_test.so
-├── libkineto.a
-├── libmkldnn.a
-├── libnnpack.a
-├── libnnpack_reference_layers.a
-├── libnvrtc-3a20f2b6.so.11.1
-├── libnvrtc-builtins-07fb3db5.so.11.1
-├── libnvrtc-builtins.so.11.1 -> libnvrtc-builtins-07fb3db5.so.11.1
-├── libnvrtc.so.11.1 -> libnvrtc-3a20f2b6.so.11.1
-├── libnvToolsExt-24de1d56.so.1
-├── libnvToolsExt.so.1 -> libnvToolsExt-24de1d56.so.1
-├── libonnx.a
-├── libonnx_proto.a
-├── libprocess_group_agent.so
-├── libprotobuf.a
-├── libprotobuf-lite.a
-├── libprotoc.a
-├── libpthreadpool.a
-├── libpytorch_qnnpack.a
-├── libqnnpack.a
-├── libshm.so
-├── libtensorpipe.a
-├── libtensorpipe_agent.so
-├── libtensorpipe_uv.a
-├── libtorchbind_test.so
-├── libtorch_cpu.so
-├── libtorch_cuda_cpp.so
-├── libtorch_cuda_cu.so
-├── libtorch_cuda.so
-├── libtorch_global_deps.so
-├── libtorch_python.so
-├── libtorch.so
-└── libXNNPACK.a
-0 directories, 66 files
-```
-and linker is able to see torch libraries. Either by `export`ing `LD_LIBRARY_PATH` or ld.so.conf:
+* Torch 1.9+ is in `/opt/local/include/torch`and `/opt/local/lib/torch`. `/opt/local` is our DEPS_ROOT. [See aMisc Customization](https://github.com/Vocinity/aMisc#customization)
+* ONNX Runtime 1.10+ is in `/opt/local/include/onnx`and `/opt/local/lib/onnx`. `/opt/local` is our DEPS_ROOT. [See aMisc Customization](https://github.com/Vocinity/aMisc#customization)
+* and linker is able to see torch & onnx-runtime-cuda libraries. Either by `export`ing `LD_LIBRARY_PATH` or ld.so.conf:
 ```
 $ cat /etc/ld.so.conf.d/opt.conf 
 /opt/local/lib/akil
 /opt/local/lib/torch
+/opt/local/lib/onnx
 ```
 
 * Prepare aMisc:
@@ -289,24 +206,22 @@ cd aMisc
 mkdir build
 cd build
 ```
-* Setup gcc 10 by sourcing secondary environment:
+* Setup gcc 11 by sourcing secondary environment:
 ```bash
-source /opt/rh/gcc-toolset-10/enable
+source /opt/rh/gcc-toolset-11/enable
 ```
 
 - Configure aMisc:
-  - RANGE_V3_OFF because your strange [compiler](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=96720) may crash with that.
-  - USE_TORCH_CUDA_RT because you are getting a mysterios cublas crash in your environment.
-  - OCV_OFF because we dont need it for Noise Reduction and it is an external dependency that requires you to compile yourself.
+  - USE_TORCH_CUDA_RT
+  - OCV_OFF because we dont need it for Context-Scorer and it is an external dependency that requires you to compile yourself.
   - CL_OFF because we dont need OpenCL availability in CUDA build.
   - NO_CONAN because we are using yum.
   - QT_OFF so we just need qmake, we do not need Qt framework libraries for Context Scorer.
-  - LTO_OFF because your compiler is a dumb.
-
- ```bash
-qmake-qt5 .. CONFIG+=RANGE_V3_OFF CONFIG+=OCV_OFF CONFIG+=USE_TORCH_CUDA_RT CONFIG+=CL_OFF CONFIG+=NO_CONAN CONFIG+=QT_OFF CONFIG+=LTO_OFF
+  - CENTOS because of Centos.
+  - WT_OFF
+```bash
+qmake-qt5 ..  CONFIG+=OCV_OFF CONFIG+=USE_TORCH_CUDA_RT CONFIG+=CL_OFF CONFIG+=NO_CONAN CONFIG+=QT_OFF CONFIG+=WT_OFF CONFIG+=CENTOS
 ```
-
 
 - Build aMisc:
 ```bash
@@ -327,25 +242,25 @@ cd build
 ```
 
 - Configure Context Scorer:
-  - RANGE_V3_OFF because your strange [compiler](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=96720) may crash with that.
-  - USE_TORCH_CUDA_RT because you are getting a mysterios cublas crash in your environment.
+  - USE_TORCH_CUDA_RT
   - CL_OFF because we dont need OpenCL availability in CUDA build.
   - NO_CONAN because we are using yum.
-  - LTO is off because you know why.
+  - CENTOS because of Centos.
 
  ```bash
-qmake-qt5 .. CONFIG+=RANGE_V3_OFF CONFIG+=USE_TORCH_CUDA_RT CONFIG+=CL_OFF CONFIG+=NO_CONAN CONFIG+=LTO_OFF
+qmake-qt5 .. CONFIG+=USE_TORCH_CUDA_RT CONFIG+=CL_OFF CONFIG+=NO_CONAN CONFIG+=CENTOS
 ```
 * Build Context Scorer:
 ```bash
 make -j 8
 make install
 ```
-* For the sake of having a complete example, obviously you need to arrange your linker paths for runtime too. Remember torch section above and here 3rd line is new:
+* For the sake of having a complete example, obviously you need to arrange your linker paths for runtime too. Remember torch & onnx section above and here 4th line is new:
 ```
 $ cat /etc/ld.so.conf.d/opt.conf 
 /opt/local/lib
 /opt/local/lib/torch
+/opt/local/lib/onnx
 /opt/local/lib/akil
 ```
 (Compilation is locating libraries by known exact paths, also you should tell linker where can be your libSomething.so in runtime.)
