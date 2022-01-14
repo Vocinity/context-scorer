@@ -507,6 +507,7 @@ class Context_Scorer_Server
 int
 main(int argc, char* argv[])
 {
+    std::cout<<"1"<<std::endl;
     setlocale(LC_NUMERIC, "C");
     const auto physical_cores = std::thread::hardware_concurrency() / 2;
     std::cout << physical_cores << " physical cores available." << std::endl;
@@ -548,8 +549,8 @@ main(int argc, char* argv[])
 
     /////////////////////////////////////////////////////////////////////////
 
-    const std::string host = "0.0.0.0";
-    const std::string port = "1991";
+    const std::string host = argv[1];
+    const std::string port = argv[2];
     const std::string address(host + ":" + port);
 
     /////////////////////////////////////////////////////////////////////////
@@ -582,13 +583,13 @@ main(int argc, char* argv[])
     Context_Scorer_Server::Scorer_Model_Configuration generic_model_configuration;
     generic_model_configuration.homonym_composer_configuration_id =
         homonym_pho_based_composer_configuration.id;
-    generic_model_configuration.model_path = argv[1];
+    generic_model_configuration.model_path = argv[3];
     generic_model_configuration.hardware =
-        std::string(argv[4]) == "--cuda" ? Vocinity::Context_Scorer::Inference_Hardware::CUDA
+        std::string(argv[6]) == "--cuda" ? Vocinity::Context_Scorer::Inference_Hardware::CUDA
                                          : Vocinity::Context_Scorer::Inference_Hardware::CPU;
     generic_model_configuration.precision = Vocinity::Context_Scorer::Precision::FP32;
     generic_model_configuration.tokenizer_configuration =
-        Vocinity::Context_Scorer::Tokenizer_Configuration{argv[2], argv[3]};
+        Vocinity::Context_Scorer::Tokenizer_Configuration{argv[4], argv[5]};
     generic_model_configuration.type = Vocinity::Context_Scorer::GPT_TYPE::DistilGPT2;
 
 

@@ -166,6 +166,7 @@ unix{
     enableExtension(MAGIC_ENUM)
     extensionProcessor(RANGE_V3)
     enableExtension(TORCH)
+    extensionProcessor(ONNX)
 
     FASTER_TRANSFORMER_AVAILABLE{
         DEFINES+= BUILD_GPT CUDA11_MODE WMMA
@@ -180,7 +181,6 @@ unix{
             #enableExtension(THRUST)
             #enableExtension(LIGHTSEQ)
             #enableExtension(FASTER_TRANSFORMER)
-            enableExtension(ONNX)
             enableExtension(TENSOR_RT)
             enableExtension(CUDNN)
         }

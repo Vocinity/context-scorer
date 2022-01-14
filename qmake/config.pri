@@ -167,6 +167,7 @@ unix{
     enableExtension(MAGIC_ENUM)
     extensionProcessor(RANGE_V3)
     enableExtension(TORCH)
+    extensionProcessor(ONNX)
 
     !CUDA_OFF{
         if(exists("/usr/local/cuda/version.txt")|exists("/usr/local/cuda/version.json")){
@@ -178,7 +179,6 @@ unix{
             }
             enableExtension(TENSOR_RT)
             enableExtension(CUDNN)
-            enableExtension(ONNX)
             #enableExtension(LIGHTSEQ)
             #enableExtension(FASTER_TRANSFORMER)
         }
