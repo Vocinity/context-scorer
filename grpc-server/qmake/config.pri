@@ -158,8 +158,8 @@ unix{
             enableExtension(THRUST)
             #enableExtension(LIGHTSEQ)
             #enableExtension(FASTER_TRANSFORMER)
-            enableExtension(TENSOR_RT)
-            enableExtension(CUDNN)
+            extensionProcessor(TENSOR_RT)
+            extensionProcessor(CUDNN)
         }
     }
 
