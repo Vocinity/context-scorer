@@ -1,3 +1,7 @@
+CUDA_AVAILABLE{
+    include(cuda.pri)
+}
+
 unix {
     include($${DEPS_ROOT}/share/akil/qmake/depend_aMisc.pri)
 

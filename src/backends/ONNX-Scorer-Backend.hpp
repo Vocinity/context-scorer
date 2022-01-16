@@ -22,7 +22,8 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
 
   public:
     Scorer_ONNX_Backend(const std::filesystem::__cxx11::path& scorer_model_path,
-                        const Vocinity::Context_Scorer::Precision precision=Vocinity::Context_Scorer::Precision::FP32,
+                        const Vocinity::Context_Scorer::Precision precision =
+                            Vocinity::Context_Scorer::Precision::FP32,
                         const unsigned long vocab_size = 50257,
                         const Vocinity::Context_Scorer::GPT_TYPE type =
                             Vocinity::Context_Scorer::GPT_TYPE::DistilGPT2
@@ -57,7 +58,7 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
         session_options.SetIntraOpNumThreads(1);
         session_options.SetInterOpNumThreads(1);
         session_options.SetExecutionMode(ExecutionMode::ORT_PARALLEL);
-      //  session_options.SetLogSeverityLevel(0);
+        //  session_options.SetLogSeverityLevel(0);
         //   session_options.SetOptimizedModelFilePath(std::string(scorer_model_path.string()+"_runtime_optimized.onnx").c_str());
         session_options.AddConfigEntry("session.set_denormal_as_zero", "1");
         session_options.AddConfigEntry("optimization.enable_gelu_approximation", "1");
@@ -86,15 +87,17 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
 #			else
             trt_options.trt_dla_enable                        = false;
             trt_options.trt_dla_core                          = 0;
-#				ifdef CUDA_INT8_AVAILABLE
-            trt_options.trt_int8_enable                       = true;
-            trt_options.trt_int8_calibration_table_name       = "";
-            trt_options.trt_int8_use_native_calibration_table = true;
-#				else
+#			endif
+//#			ifdef CUDA_INT8_AVAILABLE
+//			trt_options.trt_int8_enable                       = true;
+//			trt_options.trt_int8_calibration_table_name       = "";
+//			trt_options.trt_int8_use_native_calibration_table = true;
+//#			else
             trt_options.trt_int8_enable                       = false;
             trt_options.trt_int8_calibration_table_name       = "";
             trt_options.trt_int8_use_native_calibration_table = false;
-#					ifdef CUDA_FP16_AVAILABLE
+//#			endif
+#			ifdef CUDA_FP16_AVAILABLE
             if(precision == Vocinity::Context_Scorer::Precision::FP16)
             {
                 trt_options.trt_fp16_enable = true;
@@ -103,12 +106,12 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
             {
                 trt_options.trt_fp16_enable = false;
             }
-#					else
-            trt_options.trt_fp16_enable = false;
-#					endif
-#				endif
+#			else
+            trt_options.trt_fp16_enable                       = false;
 #			endif
+            std::cout<<"If it is crashing right after this line, one of possible reasons can be TensorRT could not bind your GPU. Reboot may help."<<std::endl;
             session_options.AppendExecutionProvider_TensorRT(trt_options);
+            std::cout<<"TensorRT execution provider succesfully registered and up, we are good."<<std::endl;
 #		endif
 
             OrtCUDAProviderOptions cuda_options;
@@ -246,9 +249,9 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
             (att_mask.cumsum(-1) - 1).masked_fill(att_mask == 0, 1);
 
 #	ifdef CUDA_AVAILABLE
-        auto& memory_info_in_use = _device == Vocinity::Context_Scorer::Inference_Hardware::CUDA
-                                       ? _cuda_memory_info
-                                       : _cpu_memory_info;
+        auto& memory_info_in_use =
+            _device == Vocinity::Context_Scorer::Inference_Hardware::CUDA ? _cuda_memory_info
+                                                                          : _cpu_memory_info;
 #	else
         auto& memory_info_in_use = _cpu_memory_info;
 #	endif
@@ -356,9 +359,9 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
         _binding->ClearBoundOutputs();
 
 #	ifdef CUDA_AVAILABLE
-        auto& memory_info_in_use = _device == Vocinity::Context_Scorer::Inference_Hardware::CUDA
-                                       ? _cuda_memory_info
-                                       : _cpu_memory_info;
+        auto& memory_info_in_use =
+            _device == Vocinity::Context_Scorer::Inference_Hardware::CUDA ? _cuda_memory_info
+                                                                          : _cpu_memory_info;
 #	else
         auto& memory_info_in_use = _cpu_memory_info;
 #	endif

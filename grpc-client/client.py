@@ -7,6 +7,7 @@ import grpc
 import os
 from typing import List
 
+#python3 -m grpc_tools.protoc --proto_path=/opt/projects/context-scorer/grpc-server/src/ --python_out=. --grpc_python_out=. /opt/projects/context-scorer/grpc-server/src/context-scorer.proto
 
 @dataclasses.dataclass
 class Homonym_Generation_Query:
