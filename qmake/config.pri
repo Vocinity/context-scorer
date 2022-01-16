@@ -177,8 +177,8 @@ unix{
             FASTER_TRANSFORMER_AVAILABLE{
                 enableExtension(THRUST)
             }
-            enableExtension(TENSOR_RT)
-            enableExtension(CUDNN)
+            extensionProcessor(TENSOR_RT)
+            extensionProcessor(CUDNN)
             #enableExtension(LIGHTSEQ)
             #enableExtension(FASTER_TRANSFORMER)
         }

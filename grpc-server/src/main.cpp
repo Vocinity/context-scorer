@@ -457,7 +457,7 @@ class Context_Scorer_Server
                 // scorer->flush_cuda_tensor_cache_before_inference();
                 scorer->optimize_parallelization_policy_for_use_of_multiple_instances();
 
-                std::cout << "Instance of" << model_code << " model initialization took: "
+                std::cout << "Instance of " << model_code << " model initialization took: "
                           << std::chrono::duration_cast<std::chrono::milliseconds>(
                                  std::chrono::high_resolution_clock::now()
                                  - model_initialization_chrono)
@@ -587,7 +587,7 @@ main(int argc, char* argv[])
     generic_model_configuration.hardware =
         std::string(argv[6]) == "--cuda" ? Vocinity::Context_Scorer::Inference_Hardware::CUDA
                                          : Vocinity::Context_Scorer::Inference_Hardware::CPU;
-    generic_model_configuration.precision = Vocinity::Context_Scorer::Precision::FP32;
+    generic_model_configuration.precision = Vocinity::Context_Scorer::Precision::FP16;
     generic_model_configuration.tokenizer_configuration =
         Vocinity::Context_Scorer::Tokenizer_Configuration{argv[4], argv[5]};
     generic_model_configuration.type = Vocinity::Context_Scorer::GPT_TYPE::DistilGPT2;
