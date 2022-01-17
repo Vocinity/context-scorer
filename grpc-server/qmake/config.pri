@@ -181,6 +181,12 @@ unix{
     enableExtension(TORCH)
     extensionProcessor(ONNX)
 
+    CENTOS{
+        enableExtension($$extensionName)
+    }else{
+        message("DEBIAN derivative environment.")
+    }
+
     FASTER_TRANSFORMER_AVAILABLE{
         DEFINES+= BUILD_GPT CUDA11_MODE WMMA
         CONFIG+= BUILD_GPT CUDA11_MODE WMMA

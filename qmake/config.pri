@@ -169,6 +169,12 @@ unix{
     enableExtension(TORCH)
     extensionProcessor(ONNX)
 
+    CENTOS{
+        enableExtension($$extensionName)
+    }else{
+        message("DEBIAN derivative environment.")
+    }
+
     !CUDA_OFF{
         if(exists("/usr/local/cuda/version.txt")|exists("/usr/local/cuda/version.json")){
             message("FOUND CUDA")
