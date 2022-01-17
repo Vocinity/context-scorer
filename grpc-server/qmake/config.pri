@@ -23,7 +23,8 @@ unix{
     message("Installing into the $$DEPL_ROOT")
     BUILD_ROOT=$$PKG_BUILD_ROOT
     isEmpty(BUILD_ROOT):BUILD_ROOT=$$(PKG_BUILD_ROOT)
-    !isEmpty(BUILD_ROOT){
+    if(isEmpty(BUILD_ROOT) | equals(BUILD_ROOT, 1)){
+    }else{
         message("Build root is $${BUILD_ROOT}")
         DEPL_ROOT=$${BUILD_ROOT}/$${DEPL_ROOT}
     }
