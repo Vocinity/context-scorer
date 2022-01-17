@@ -72,7 +72,7 @@ class Context_Scorer_Client(object):
 
 
 if __name__ == '__main__':
-    client = Context_Scorer_Client("127.0.0.1",1991)
+    client = Context_Scorer_Client("10.0.0.201",1991)
     try:
         client.say_hi()
     except grpc.RpcError as e:
