@@ -171,6 +171,7 @@ class Context_Scorer_Server
             const Vocinity::Context_Scoring_Query* request,
             Vocinity::Context_Score* reply) override
         {
+            auto chrono                      = std::chrono::high_resolution_clock::now();
             const auto& material             = request->material();
             const auto homonym_query_request = material.input();
             const std::string model_code     = homonym_query_request.model_code().empty()
@@ -225,15 +226,15 @@ class Context_Scorer_Server
                     }
 
                     alternative.resize(alternative.size() - 1);
-                    alternative+=".";
-                    std::string full_statement=alternative;
+                    alternative += ".";
+                    std::string full_statement = alternative;
                     if(not material.pre_context().empty())
                     {
-                        full_statement=material.pre_context() + " "+full_statement;
+                        full_statement = material.pre_context() + " " + full_statement;
                     }
                     if(not material.post_context().empty())
                     {
-                        full_statement+=" "+material.post_context();
+                        full_statement += " " + material.post_context();
                     }
 
 #ifdef CPP17_AVAILABLE
@@ -298,6 +299,11 @@ class Context_Scorer_Server
                     score->set_sentence_probability(result.sentence_probability);
                 }
             }
+
+            const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                      std::chrono::high_resolution_clock::now() - chrono)
+                                      .count();
+            std::cout << "Scoring took " << duration << " msecs" << std::endl;
 
             return grpc::Status::OK;
         }
@@ -507,14 +513,13 @@ class Context_Scorer_Server
 int
 main(int argc, char* argv[])
 {
-    std::cout<<"1"<<std::endl;
     setlocale(LC_NUMERIC, "C");
     const auto physical_cores = std::thread::hardware_concurrency() / 2;
     std::cout << physical_cores << " physical cores available." << std::endl;
     std::cout << argv[4] << " device is selected" << std::endl;
 
     const std::string phonetics_dictionary =
-        "/opt/cloud/projects/vocinity/models/context-scorer/cmudict-0.7b.txt";
+        "/opt/models/context-scorer/homonym-generator/cmudict-0.7b.txt";
     if(false)
     {
         auto method =
@@ -563,7 +568,7 @@ main(int argc, char* argv[])
     homonym_pho_based_composer_configuration.matching_method =
         Vocinity::Homophonic_Alternative_Composer::Matching_Method::Phoneme_Transcription;
     homonym_pho_based_composer_configuration.precomputed_phoneme_similarity_map =
-        "/opt/cloud/projects/vocinity/models/context-scorer/"
+        "/opt/models/context-scorer/homonym-generator/"
         "similarity_map-cmudict07b-dist2-phoneme_transcription.cbor";
     homonym_pho_based_composer_configuration.is_levenshtein_dump = false;
 
