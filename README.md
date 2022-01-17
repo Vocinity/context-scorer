@@ -27,19 +27,27 @@ Visual Studio: NO
 
 ### Dependencies
 
-#### Context_Scorer
-- lib_Context-Scorer 
-
 #### lib_Context-Scorer
-- [aMisc](https://github.com/Vocinity/aMisc)
+- [From aMisc Inclusion](https://github.com/Vocinity/aMisc)
   - TORCH *is mandatory.*
+  - ONNX  *is mandatory.*
+  - CUDA & CUDNN *is nice*
+  - TensorRT *is quite nice*
   - MAGIC_ENUM *is a must.*
   - RANGE_V3 *is optional for pre-C++20. (If you suffer from [compiler seg fault](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=96720), disable RANGE_V3 and use C++20)*
   - JSON *is a must.*
-  - PYSTRING or RANGE_V3 or c++23 support *is needed.*
+  - PYSTRING or RANGE_V3 or c++20 support *is needed.*
   - LEVENSHTEIN_SSE or RAPIDFUZZ_CPP *or both would be nice.*
   - SOUNDEX *is optional.*
   - DOUBLE_METAPHONE *is optional.*
+
+#### Context-Scorer_Example
+- lib_Context-Scorer 
+
+#### Context-Scorer_Server
+  - lib_Context-Scorer 
+  - GRPC >= 1.25. 1.25 (CENTOS rpm) and 1.27 (Ubunru custom build) are used for development.
+  - Protobuf which is compatible with your GRPC. CENTOS rpm and 3.18 are used for development.
 
 ### Building
 Did you install aMisc? Congrats, then already you did almost all the job.
@@ -86,6 +94,9 @@ make install
 | ```CCACHE_OFF```            | ```0```            | using this switch is disabling ccache usage.
 | ```GCC_CHECK_OFF```         | ```0```            | C++ standard is deduced automatically from gcc version. Disable querying gcc version for supported c++ standard if you have a weird configuration that old gcc is overriding the new one and you are sure there is desired CPP17/20 support.
 | ```TEST_OFF```              | ```0```            | Test (that dont exist) wont be compiled
+| ```USE_TORCH_CUDA_RT```        | ```0```            | This option makes use of libcudart in libtorch library path instead of the one that comes with CUDA SDK. Normally they can live together but some systems require to enable this switch.
+| ```CUDNN_OFF```                | ```0```            | otherwise CUDNN in /usr/local/cuda/lib64 wont be be linked. Requires CUDA.
+| ```TENSOR_RT_OFF```            | ```0```            | otherwise Tensor RT in /usr/local/trt/lib wont be be linked. Requires CUDA.
 | ```ONNX_OFF```              | ```0```            | Otherwise ONNX runtime expected to be found in DEPS_ROOT/include/onnx and DEPS_ROOT/lib/onnx.
 | ```CUDA_OFF```              | ```0```            | CUDA is used if either `/usr/local/cuda/version.txt` or `/usr/local/cuda/version.json` is found. Please dont miss libtorch and installed cuda version compatibility note in [External Dependencies](https://github.com/Vocinity/aMisc#external-dependencies) section.
 | ```USE_TORCH_CUDA_RT```     | ```0```            | This option makes use of libcudart in libtorch library path instead of the one that comes with CUDA SDK. Normally they can live together but some systems require to enable this switch.
@@ -182,22 +193,28 @@ make uninstall
 
 #### Build Procedure
 
-> We are on Centos, default gcc is 8.4, we dont have a nvidia gpu, our cpu has not igpu.
+> Lets say we are on Centos, you know CENTOS is not fully supported, default gcc is 8.4, we have a nvidia gpu, our cpu has not igpu.
 
-* Get some dependencies from yum
+
+* Get some dependencies from yum or apt
 ```bash
 sudo yum install python3-devel qt5-qtbase-devel tbb-devel
 ```
-* Torch 1.9+ is in `/opt/local/include/torch`and `/opt/local/lib/torch`. `/opt/local` is our DEPS_ROOT. [See aMisc Customization](https://github.com/Vocinity/aMisc#customization)
-* ONNX Runtime 1.10+ is in `/opt/local/include/onnx`and `/opt/local/lib/onnx`. `/opt/local` is our DEPS_ROOT. [See aMisc Customization](https://github.com/Vocinity/aMisc#customization)
-* and linker is able to see torch & onnx-runtime-cuda libraries. Either by `export`ing `LD_LIBRARY_PATH` or ld.so.conf:
+```bash
+sudo apt install python3-dev qt5-qmake libtbb-dev
+```
+* Put [ONNX](https://github.com/microsoft/onnxruntime/releases), [CUDA SDK, CUDNN](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements), [TensorRT](https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#requirements) and Torch 1.9+ in (`CENTOS` or `else`) places under DEPS_ROOT (`/opt/local` is default) and `/usr/local` (for NVIDIA toolkits) where [aMisc](https://github.com/Vocinity/aMisc#customization) expects to find.
+* and make sure linker is able to see these libraries. Either by `export`ing `LD_LIBRARY_PATH` or ld.so.conf:
 ```
 $ cat /etc/ld.so.conf.d/opt.conf 
 /opt/local/lib/akil
-/opt/local/lib/torch
 /opt/local/lib/onnx
+/opt/local/lib/torch
+/usr/local/cuda/lib64
+/usr/local/cudnn/lib64
+/usr/local/trt/lib
 ```
-
+(Compilation is locating libraries by known exact paths, also you should tell linker where can be your libSomething.so in runtime.)
 * Prepare aMisc:
 ```bash
 cd /home/vocinity/work
@@ -212,7 +229,6 @@ source /opt/rh/gcc-toolset-11/enable
 ```
 
 - Configure aMisc:
-  - USE_TORCH_CUDA_RT
   - OCV_OFF because we dont need it for Context-Scorer and it is an external dependency that requires you to compile yourself.
   - CL_OFF because we dont need OpenCL availability in CUDA build.
   - NO_CONAN because we are using yum.
@@ -220,7 +236,7 @@ source /opt/rh/gcc-toolset-11/enable
   - CENTOS because of Centos.
   - WT_OFF
 ```bash
-qmake-qt5 ..  CONFIG+=OCV_OFF CONFIG+=USE_TORCH_CUDA_RT CONFIG+=CL_OFF CONFIG+=NO_CONAN CONFIG+=QT_OFF CONFIG+=WT_OFF CONFIG+=CENTOS
+qmake-qt5 ..  CONFIG+=OCV_OFF  CONFIG+=CL_OFF CONFIG+=NO_CONAN CONFIG+=QT_OFF CONFIG+=WT_OFF CONFIG+=CENTOS
 ```
 
 - Build aMisc:
@@ -242,28 +258,18 @@ cd build
 ```
 
 - Configure Context Scorer:
-  - USE_TORCH_CUDA_RT
   - CL_OFF because we dont need OpenCL availability in CUDA build.
   - NO_CONAN because we are using yum.
   - CENTOS because of Centos.
 
  ```bash
-qmake-qt5 .. CONFIG+=USE_TORCH_CUDA_RT CONFIG+=CL_OFF CONFIG+=NO_CONAN CONFIG+=CENTOS
+qmake-qt5 .. CONFIG+=CL_OFF CONFIG+=NO_CONAN CONFIG+=CENTOS
 ```
 * Build Context Scorer:
 ```bash
 make -j 8
 make install
 ```
-* For the sake of having a complete example, obviously you need to arrange your linker paths for runtime too. Remember torch & onnx section above and here 4th line is new:
-```
-$ cat /etc/ld.so.conf.d/opt.conf 
-/opt/local/lib
-/opt/local/lib/torch
-/opt/local/lib/onnx
-/opt/local/lib/akil
-```
-(Compilation is locating libraries by known exact paths, also you should tell linker where can be your libSomething.so in runtime.)
 
 If you can locate [these](https://github.com/Vocinity/context-scorer#installation-material) files, you did it. Have fun!
 
