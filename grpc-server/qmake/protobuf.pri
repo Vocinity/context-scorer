@@ -6,7 +6,7 @@ unix {
         GRPC{
             CENTOS{
                 message("GRPC protobuf extension enabled. Expected to be found in path: "$$system(which grpc_cpp_plugin))
-                LIBS+= -lgrpc++ -lgrpc
+                LIBS+= -lgrpc++
             }
             else{
             message("GRPC protobuf extension enabled. Expected to be found in path: "$${DEPS_ROOT}/bin/grpc_cpp_plugin)
