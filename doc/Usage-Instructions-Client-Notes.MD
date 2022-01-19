@@ -34,7 +34,7 @@ You can just get available homonyms and decide to not to score that context if h
 #### Homonym_Generation_Query
 
 ##### `input`
-is what you want to produce homonyms of EACH WORD.
+is what you want to produce sentences as permutations of homophonic relatives of EACH input WORD.
 
 * Word is space separated substring of this string.
 * What you put at the end like `? or ! or . or ,` does not matter. Uppercase or lowercase dont matter.
@@ -64,7 +64,7 @@ is list of words that you dont want server to produce alternatives. Original wor
 There are 4 homonym matching methods. 2 of them dont require you to have a phoneme dictionary but raw word list is enough. Planned to be dropped.
 
 ##### `model_code`
-which scorer model will score this the produced homonyms. Empty is fine (means generic).
+which scorer model will score these produced homonyms. Empty is fine (means generic).
 
 Having scorer model id in Homonym_Generation_Query may seem unintutive but think mode_code like context_code.
 "Ideally" models are trained for the context that we build our homonyms dictionary. So this code is defining, model, homonym dictionary and relevant domain all together.
@@ -93,14 +93,14 @@ MARTE (-1)
 #### Context_Scoring_Query
 
 ##### `pre_context`
-is the string prepended to each alternative sentence for scoring that words homophonic relatives of original imput.
+is the string prepended to each alternative sentence for scoring.
 * More context=better accuracy. Unnecessary context=worse accuracy.
 
 ##### `input`
-see above.
+see above
 
 ##### `post_context`
-is the string appended to each alternative sentence for scoring that words homophonic relatives of original imput.
+is the string appended to each alternative sentence for scoring.
 * More context=better accuracy. Unnecessary context=worse accuracy.
 
 ##### `per_char_normalized`
@@ -118,11 +118,12 @@ pre_context:`Click on the eye in the icon tray to pick your product of interest 
 input: `Smart rower.`
 post context: nothing.
 ```
-* produced homophonic relative of input: `SMART ROWER.` (original is its perfect homonym and will be scored too)
+* produced homophonic relative of input: `SMART ROWER.` (original is its own perfect homonym and will be scored too. Even mostly it is correct alternative.)
 * produced homophonic relative of input: `START ROHER.`
 * produced homophonic relative of input: `SMART ROHER.`
 
-> Dot will be appended to alternative sentences under the hood. (still thinking about it)
+> Dot will be appended to alternative sentences by [server](https://github.com/Vocinity/context-scorer/blob/9fa0d26ed421a2ab2c1b1dc2599995d0928d1f45/grpc-server/src/main.cpp#L229). (still thinking about others like ?!) 
+
 
 What scoring sees:
 ```
