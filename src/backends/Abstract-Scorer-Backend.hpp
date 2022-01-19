@@ -7,6 +7,7 @@ class Vocinity::Context_Scorer::Abstract_Scorer_Backend
 {
   public:
     struct GPT_Configuration
+    // config.json from huggingface card
     {
         ushort hidden_size         = 768;  //n_embd
         ushort num_attention_heads = 12;   // n_head
@@ -29,6 +30,38 @@ class Vocinity::Context_Scorer::Abstract_Scorer_Backend
         {
             return GPT_Configuration{768, 12, 6, 1024};
         }
+        else if(type == Vocinity::Context_Scorer::GPT_TYPE::GPT2_Small)
+        {
+            return GPT_Configuration{768, 12, 12, 1024};
+        }
+        else if(type == Vocinity::Context_Scorer::GPT_TYPE::GPT2_Medium)
+        {
+            return GPT_Configuration{1024, 16, 24, 1024};
+        }
+        else if(type == Vocinity::Context_Scorer::GPT_TYPE::GPT2_Large)
+        {
+            return GPT_Configuration{1280, 20, 36, 1024};
+        }
+        else if(type == Vocinity::Context_Scorer::GPT_TYPE::GPT2_XLarge)
+        {
+            return GPT_Configuration{1600, 25, 48, 1024};
+        }
+        else if(type == Vocinity::Context_Scorer::GPT_TYPE::GPT_Neo_125M)
+        {
+            return GPT_Configuration{768, 12, 12, 2048};
+        }
+        else if(type == Vocinity::Context_Scorer::GPT_TYPE::GPT_Neo_1_3B)
+        {
+            return GPT_Configuration{2048, 16, 24, 2048};
+        }
+        else if(type == Vocinity::Context_Scorer::GPT_TYPE::GPT_Neo_2_7B)
+        {
+            return GPT_Configuration{2560, 20, 32, 2048};
+        }
+        else if(type == Vocinity::Context_Scorer::GPT_TYPE::GPT_J)
+        {
+            return GPT_Configuration{4096, 16, 28, 2048};
+        }
         return GPT_Configuration();
     }
 
@@ -38,9 +71,10 @@ class Vocinity::Context_Scorer::Abstract_Scorer_Backend
     }
 
     static inline c10::Device get_torch_device(
-        const Vocinity::Context_Scorer::Inference_Hardware& backend)
+        const Vocinity::Context_Scorer::Inference_Environment& environment)
     {
-        if(backend == Vocinity::Context_Scorer::Inference_Hardware::CUDA)
+        if(environment == Vocinity::Context_Scorer::Inference_Environment::CUDA
+           or environment == Vocinity::Context_Scorer::Inference_Environment::TensorRT)
         {
             return torch::kCUDA;
         }
@@ -75,8 +109,8 @@ class Vocinity::Context_Scorer::Abstract_Scorer_Backend
     virtual int64_t get_stride() = 0;
 
   protected:
-    Vocinity::Context_Scorer::Inference_Hardware _device =
-        Vocinity::Context_Scorer::Inference_Hardware::CPU;
+    Vocinity::Context_Scorer::Inference_Environment _environment =
+        Vocinity::Context_Scorer::Inference_Environment::CPU;
     const c10::ScalarType _input_int_range = torch::kInt64;
     torch::Tensor _past;
     Vocinity::Context_Scorer::Precision _precision;

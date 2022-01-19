@@ -22,15 +22,34 @@ main(int argc, char* argv[])
                          const bool verbose = false)
     {
         auto model_initialization_chrono = std::chrono::high_resolution_clock::now();
+
+           #ifdef CUDA_AVAILABLE
+        Vocinity::Context_Scorer::Inference_Environment environment;
+        if(std::string(argv[4]) == "--cuda")
+        {
+            environment = Vocinity::Context_Scorer::Inference_Environment::CUDA;
+        }
+        else if(std::string(argv[4]) == "--cpu")
+        {
+            environment = Vocinity::Context_Scorer::Inference_Environment::CPU;
+        }
+        else if(std::string(argv[4]) == "--trt")
+        {
+            environment = Vocinity::Context_Scorer::Inference_Environment::TensorRT;
+        }
+#endif
+
         Vocinity::Context_Scorer scorer{
             argv[1],
             Vocinity::Context_Scorer::GPT_TYPE::DistilGPT2,
             Vocinity::Context_Scorer::Tokenizer_Configuration{argv[2], argv[3]},
-            Vocinity::Context_Scorer::Precision::FP32,
-            std::string(argv[4]) == "--cuda"
-                ? Vocinity::Context_Scorer::Inference_Hardware::CUDA
-                : Vocinity::Context_Scorer::Inference_Hardware::CPU};
-            scorer.flush_cuda_tensor_cache_before_inference();
+            Vocinity::Context_Scorer::Precision::FP16
+        #ifdef CUDA_AVAILABLE
+                    ,
+            environment
+        #endif
+        };
+        scorer.flush_cuda_tensor_cache_before_inference();
 
         std::cout << "Instance " << instance_index << " " << argv[1]
                   << " model initialization took: "

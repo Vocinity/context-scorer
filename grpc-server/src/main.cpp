@@ -31,9 +31,9 @@ class Context_Scorer_Server
             Vocinity::Context_Scorer::GPT_TYPE::DistilGPT2;
         Vocinity::Context_Scorer::Tokenizer_Configuration tokenizer_configuration;
         Vocinity::Context_Scorer::Precision precision =
-            Vocinity::Context_Scorer::Precision::FP32;
-        Vocinity::Context_Scorer::Inference_Hardware hardware =
-            Vocinity::Context_Scorer::Inference_Hardware::CPU;
+            Vocinity::Context_Scorer::Precision::FP16;
+        Vocinity::Context_Scorer::Inference_Environment environment =
+            Vocinity::Context_Scorer::Inference_Environment::CUDA;
     };
 
   public:
@@ -459,7 +459,7 @@ class Context_Scorer_Server
                     model_configuration.type,
                     model_configuration.tokenizer_configuration,
                     model_configuration.precision,
-                    model_configuration.hardware);
+                    model_configuration.environment);
                 // scorer->flush_cuda_tensor_cache_before_inference();
                 scorer->optimize_parallelization_policy_for_use_of_multiple_instances();
 
@@ -584,18 +584,29 @@ main(int argc, char* argv[])
     //        "similarity_map-cmudict07b-dist2-phoneme_levenshtein.cbor";
     //    homonym_lev_based_composer_configuration.is_levenshtein_dump=true;
 
+    Vocinity::Context_Scorer::Inference_Environment environment;
+    if(std::string(argv[6]) == "--cuda")
+    {
+        environment = Vocinity::Context_Scorer::Inference_Environment::CUDA;
+    }
+    else if(std::string(argv[6]) == "--cpu")
+    {
+        environment = Vocinity::Context_Scorer::Inference_Environment::CPU;
+    }
+    else if(std::string(argv[6]) == "--trt")
+    {
+        environment = Vocinity::Context_Scorer::Inference_Environment::TensorRT;
+    }
 
     Context_Scorer_Server::Scorer_Model_Configuration generic_model_configuration;
     generic_model_configuration.homonym_composer_configuration_id =
         homonym_pho_based_composer_configuration.id;
-    generic_model_configuration.model_path = argv[3];
-    generic_model_configuration.hardware =
-        std::string(argv[6]) == "--cuda" ? Vocinity::Context_Scorer::Inference_Hardware::CUDA
-                                         : Vocinity::Context_Scorer::Inference_Hardware::CPU;
-    generic_model_configuration.precision = Vocinity::Context_Scorer::Precision::FP16;
+    generic_model_configuration.model_path  = argv[3];
+    generic_model_configuration.environment = environment;
+    generic_model_configuration.precision   = Vocinity::Context_Scorer::Precision::FP16;
     generic_model_configuration.tokenizer_configuration =
         Vocinity::Context_Scorer::Tokenizer_Configuration{argv[4], argv[5]};
-    generic_model_configuration.type = Vocinity::Context_Scorer::GPT_TYPE::DistilGPT2;
+    generic_model_configuration.type = Vocinity::Context_Scorer::GPT_TYPE::GPT2_Medium;
 
 
     Unordered_Map<Context_Scorer_Server::Model_Code,

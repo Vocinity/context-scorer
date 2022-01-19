@@ -9,7 +9,7 @@ namespace Vocinity
     class Context_Scorer
     {
       public:
-        enum class Inference_Hardware : short { CPU = 0, CUDA = 1 };
+        enum class Inference_Environment : short { CPU = 0, CUDA = 1, TensorRT=2 };
         enum Precision : short { FP32 = 0, FP16 = 1 /*, INT8=2*/ };
         enum class GPT_TYPE:short
         {
@@ -18,9 +18,11 @@ namespace Vocinity
             GPT2_Medium=2,
             GPT2_Large=4,
             GPT2_XLarge=8,
-            GPT_Neo=16,
-            GPT_J=32,
-            GPT_NEOX=64,
+            GPT_Neo_125M=16,
+            GPT_Neo_1_3B=32,
+            GPT_Neo_2_7B=64,
+            GPT_J=128,
+         //   GPT_NEOX=256,
         };
 
       public:
@@ -101,7 +103,7 @@ namespace Vocinity
                                 const Precision precision                    = Precision::FP32
 #ifdef CUDA_AVAILABLE
                                 ,
-                                const Inference_Hardware device = Inference_Hardware::CPU
+                                const Inference_Environment environment = Inference_Environment::CPU
 #endif
         );
 
@@ -171,7 +173,7 @@ namespace Vocinity
         const GPT_TYPE _type;
         std::unique_ptr<Abstract_Scorer_Backend> _inference_backend;
         const Precision _precision;
-        c10::DeviceType _device = torch::kCPU;
+        c10::DeviceType _torch_device = torch::kCPU;
         std::unique_ptr<Tokenizer> _tokenizer;
         std::mutex _instance_mutex;
     };

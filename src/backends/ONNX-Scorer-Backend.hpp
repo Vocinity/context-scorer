@@ -5,17 +5,17 @@
 #ifdef ONNX_AVAILABLE
 #	include "Abstract-Scorer-Backend.hpp"
 #	include <onnx/onnxruntime_cxx_api.h>
-#ifdef CENTOS_AVAILABLE
-#	ifdef CUDA_AVAILABLE
-#		ifdef TENSOR_RT_AVAILABLE
-#			include <onnx/tensorrt_provider_factory.h>
+#	ifdef CENTOS_AVAILABLE
+#		ifdef CUDA_AVAILABLE
+#			ifdef TENSOR_RT_AVAILABLE
+#				include <onnx/tensorrt_provider_factory.h>
+#			endif
 #		endif
 #	endif
-#endif
 #	include <torch/csrc/api/include/torch/nn/functional/loss.h>
-// python -m onnxruntime.transformers.convert_to_onnx -m distilgpt2 --model_class GPT2LMHeadModel --output distilgpt2.onnx -p fp32 --use_gpu --verbose #--optimize_onnx // actually you dont need past hidden states for perplexity but does not matter
-// python -m onnxruntime.transformers.optimizer --model_type gpt2 --input distilgpt2.onnx --output distilgpt2_optimized.onnx --num_heads 12 --hidden_size 768 --opt_level 1 --only_onnxruntime --verbose #--input_int32 --float16
+// python -m onnxruntime.transformers.convert_to_onnx -m distilgpt2 --model_class GPT2LMHeadModel --output distilgpt2.onnx -p fp16 --use_gpu --verbose --optimize_onnx // actually you dont need past hidden states for perplexity but does not matter
 //-------just know how to, dont use below-------
+// python -m onnxruntime.transformers.optimizer --model_type gpt2 --input distilgpt2.onnx --output distilgpt2_optimized.onnx --num_heads 12 --hidden_size 768 --opt_level 1 --only_onnxruntime --verbose #--input_int32 --float16
 // python -m onnxruntime.tools.symbolic_shape_infer --input ./distilgpt2_optimized.onnx --output ./distilgpt2_optimized-shaped.onnx --verbose 3 --auto_merge
 class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Backend
 {
@@ -31,8 +31,8 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
                             Vocinity::Context_Scorer::GPT_TYPE::DistilGPT2
 #	ifdef CUDA_AVAILABLE
                         ,
-                        const Vocinity::Context_Scorer::Inference_Hardware device =
-                            Vocinity::Context_Scorer::Inference_Hardware::CPU
+                        const Vocinity::Context_Scorer::Inference_Environment environment =
+                            Vocinity::Context_Scorer::Inference_Environment::CPU
 #	endif
                         )
         : _vocab_size(vocab_size)
@@ -44,7 +44,7 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
         }
 
 #	ifdef CUDA_AVAILABLE
-        _device = device;
+        _environment = environment;
 #	endif
         _precision = precision;
 
@@ -67,60 +67,69 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
         //  session_options.EnableProfiling("profiling.prof");
 
 #	ifdef CUDA_AVAILABLE
-        if(device == Vocinity::Context_Scorer::Inference_Hardware::CUDA)
+        if(environment == Vocinity::Context_Scorer::Inference_Environment::CUDA
+           or environment == Vocinity::Context_Scorer::Inference_Environment::TensorRT)
         {
+            if(environment == Vocinity::Context_Scorer::Inference_Environment::TensorRT)
+            {
 #		ifdef TENSOR_RT_AVAILABLE
-#ifdef CENTOS_AVAILABLE
-           //Centos is buggy, you can not regiser TRTProvider options via cxx inline api. So you can not configure anything.
-            OrtSessionOptionsAppendExecutionProvider_Tensorrt(session_options, 0);
-#else
-            OrtTensorRTProviderOptions trt_options;
-            trt_options.device_id                    = 0;
-            trt_options.has_user_compute_stream      = 0;
-            trt_options.user_compute_stream          = nullptr;
-            trt_options.trt_max_partition_iterations = 1000;
-            trt_options.trt_min_subgraph_size        = 1;
-            trt_options.trt_max_workspace_size       = 1 << 30;
-            trt_options.trt_engine_cache_enable      = false; // true
-            //trt_options.trt_engine_cache_path             = "";
-            trt_options.trt_dump_subgraphs                = false; //
-            trt_options.trt_engine_decryption_enable      = false;
-            trt_options.trt_engine_decryption_lib_path    = "";
-            trt_options.trt_force_sequential_engine_build = false;
-#			ifdef CUDA_DLA_AVAILABLE
-            trt_options.trt_dla_enable = true;
-            trt_options.trt_dla_core   = 0;
+#			ifdef CENTOS_AVAILABLE
+                //Centos is buggy, you can not regiser TRTProvider options via cxx inline api. So you can not configure anything.
+                OrtSessionOptionsAppendExecutionProvider_Tensorrt(session_options, 0);
 #			else
-            trt_options.trt_dla_enable                        = false;
-            trt_options.trt_dla_core                          = 0;
+                OrtTensorRTProviderOptions trt_options;
+                trt_options.device_id                    = 0;
+                trt_options.has_user_compute_stream      = 0;
+                trt_options.user_compute_stream          = nullptr;
+                trt_options.trt_max_partition_iterations = 1000;
+                trt_options.trt_min_subgraph_size        = 1;
+                trt_options.trt_max_workspace_size       = 1 << 30;
+                trt_options.trt_engine_cache_enable      = false; // true
+                //trt_options.trt_engine_cache_path             = "";
+                trt_options.trt_dump_subgraphs                = false; //
+                trt_options.trt_engine_decryption_enable      = false;
+                trt_options.trt_engine_decryption_lib_path    = "";
+                trt_options.trt_force_sequential_engine_build = false;
+#				ifdef CUDA_DLA_AVAILABLE
+                trt_options.trt_dla_enable                    = true;
+                trt_options.trt_dla_core                      = 0;
+#				else
+                trt_options.trt_dla_enable = false;
+                trt_options.trt_dla_core   = 0;
+#				endif
+                // explicitly disable for now
+                //#			ifdef CUDA_INT8_AVAILABLE
+                //			trt_options.trt_int8_enable                       = true;
+                //			trt_options.trt_int8_calibration_table_name       = "";
+                //			trt_options.trt_int8_use_native_calibration_table = true;
+                //#			else
+                trt_options.trt_int8_enable                       = false;
+                trt_options.trt_int8_calibration_table_name       = "";
+                trt_options.trt_int8_use_native_calibration_table = false;
+                //#			endif
+                //#			ifdef CUDA_FP16_AVAILABLE
+                if(precision == Vocinity::Context_Scorer::Precision::FP16)
+                {
+                    trt_options.trt_fp16_enable = true;
+                }
+                else
+                {
+                    trt_options.trt_fp16_enable = false;
+                }
+                //#			else
+                //            trt_options.trt_fp16_enable                       = false;
+                //#			endif
+                std::cout
+                    << "If it is crashing right after this line, one of possible reasons "
+                       "can be TensorRT could not bind your GPU."
+                    << std::endl;
+                session_options.AppendExecutionProvider_TensorRT(trt_options);
+                std::cout << "TensorRT execution provider succesfully registered and up, we "
+                             "are good."
+                          << std::endl;
 #			endif
-            // explicitly disable for now
-//#			ifdef CUDA_INT8_AVAILABLE
-//			trt_options.trt_int8_enable                       = true;
-//			trt_options.trt_int8_calibration_table_name       = "";
-//			trt_options.trt_int8_use_native_calibration_table = true;
-//#			else
-            trt_options.trt_int8_enable                       = false;
-            trt_options.trt_int8_calibration_table_name       = "";
-            trt_options.trt_int8_use_native_calibration_table = false;
-//#			endif
-#			ifdef CUDA_FP16_AVAILABLE
-            if(precision == Vocinity::Context_Scorer::Precision::FP16)
-            {
-                trt_options.trt_fp16_enable = true;
-            }
-            else
-            {
-                trt_options.trt_fp16_enable = false;
-            }
-#			else
-            trt_options.trt_fp16_enable                       = false;
-#			endif
-            std::cout<<"If it is crashing right after this line, one of possible reasons can be TensorRT could not bind your GPU."<<std::endl;
-            session_options.AppendExecutionProvider_TensorRT(trt_options);
-            std::cout<<"TensorRT execution provider succesfully registered and up, we are good."<<std::endl;
-#endif
 #		endif
+            }
 
             OrtCUDAProviderOptions cuda_options;
             cuda_options.device_id = 0;
@@ -145,7 +154,8 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
         _binding = std::make_unique<Ort::IoBinding>(*_session);
 
 #	ifdef CUDA_AVAILABLE
-        if(_device == Vocinity::Context_Scorer::Inference_Hardware::CUDA)
+        if(_environment == Vocinity::Context_Scorer::Inference_Environment::CUDA
+           or _environment == Vocinity::Context_Scorer::Inference_Environment::TensorRT)
         {
             _cuda_memory_info = (Ort::MemoryInfo(
                 "Cuda", OrtAllocatorType::OrtDeviceAllocator, 0, OrtMemTypeDefault));
@@ -232,8 +242,8 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
         _past = torch::zeros(
             {num_layers, 2, 1, num_attention_heads, 0, hidden_size / num_attention_heads},
             torch::TensorOptions()
-                .dtype(torch::kFloat32/*get_torch_precision()*/)
-                .device(get_torch_device(_device)));
+                .dtype(torch::kFloat32 /*get_torch_precision()*/)
+                .device(get_torch_device(_environment)));
     }
     Scorer_ONNX_Backend(const Scorer_ONNX_Backend& other) = delete;
     Scorer_ONNX_Backend& operator=(const Scorer_ONNX_Backend& other) = delete;
@@ -258,8 +268,11 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
 
 #	ifdef CUDA_AVAILABLE
         auto& memory_info_in_use =
-            _device == Vocinity::Context_Scorer::Inference_Hardware::CUDA ? _cuda_memory_info
-                                                                          : _cpu_memory_info;
+            _environment == Vocinity::Context_Scorer::Inference_Environment::CUDA
+                    or _environment
+                           == Vocinity::Context_Scorer::Inference_Environment::TensorRT
+                ? _cuda_memory_info
+                : _cpu_memory_info;
 #	else
         auto& memory_info_in_use = _cpu_memory_info;
 #	endif
@@ -276,13 +289,26 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
                                      input_ids.sizes().size());
         _binding->BindInput("input_ids", input_ids_bound);
 
+
+        const auto att_casted = _precision == Vocinity::Context_Scorer::Precision::FP16
+                                    ? att_mask.to(torch::kHalf)
+                                    : att_mask;
         const Ort::Value att_mask_bound =
-            Ort::Value::CreateTensor(memory_info_in_use,
-                                     reinterpret_cast<float*>(att_mask.data_ptr()),
-                                     batch_size * actual_sequence_length,
-                                     att_mask.sizes().data(),
-                                     att_mask.sizes().size());
+            _precision == Vocinity::Context_Scorer::Precision::FP16
+                ? Ort::Value::CreateTensor(
+                    memory_info_in_use,
+                    reinterpret_cast<Ort::Float16_t*>(att_casted.data_ptr()),
+                    batch_size * actual_sequence_length * sizeof(uint16_t),
+                    att_casted.sizes().data(),
+                    att_casted.sizes().size(),
+                    ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16)
+                : Ort::Value::CreateTensor(memory_info_in_use,
+                                           reinterpret_cast<float*>(att_casted.data_ptr()),
+                                           batch_size * actual_sequence_length,
+                                           att_casted.sizes().data(),
+                                           att_casted.sizes().size());
         _binding->BindInput("attention_mask", att_mask_bound);
+
 
         const Ort::Value position_ids_bound =
             Ort::Value::CreateTensor(memory_info_in_use,
@@ -292,16 +318,29 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
                                      position_ids.sizes().size());
         _binding->BindInput("position_ids", position_ids_bound);
 
+
         const uint past_elem_length =
             2 * batch_size * num_attention_heads * 1 * (hidden_size / num_attention_heads);
         for(int l = 0; l < num_layers; ++l)
         {
+            const auto past_casted = _precision == Vocinity::Context_Scorer::Precision::FP16
+                                         ? past.to(torch::kHalf)
+                                         : past;
             const Ort::Value past_l_bound =
-                Ort::Value::CreateTensor(memory_info_in_use,
-                                         reinterpret_cast<float*>(past[l].data_ptr()),
-                                         past_elem_length,
-                                         past[l].sizes().data(),
-                                         past[l].sizes().size());
+                _precision == Vocinity::Context_Scorer::Precision::FP16
+                    ? Ort::Value::CreateTensor(
+                        memory_info_in_use,
+                        reinterpret_cast<Ort::Float16_t*>(past_casted[l].data_ptr()),
+                        past_elem_length * sizeof(uint16_t),
+                        past_casted[l].sizes().data(),
+                        past_casted[l].sizes().size(),
+                        ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16)
+                    : Ort::Value::CreateTensor(
+                        memory_info_in_use,
+                        reinterpret_cast<float*>(past_casted[l].data_ptr()),
+                        past_elem_length,
+                        past_casted[l].sizes().data(),
+                        past_casted[l].sizes().size());
             _binding->BindInput((std::string("past_") + std::to_string(l)).c_str(),
                                 past_l_bound);
         }
@@ -315,6 +354,13 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
         const auto& shift_labels = labels.index({"...", Slice(1, None)}).contiguous();
         const auto loss          = torch::nn::functional::cross_entropy(
             shift_logits.view({-1, shift_logits.size(-1)}), shift_labels.view({-1}));
+
+        if(_precision == Vocinity::Context_Scorer::Precision::FP16)
+        {
+            return {loss.to(torch::kFloat32),
+                    logits.to(torch::kFloat32),
+                    present_states.to(torch::kFloat32)};
+        }
         return {loss, logits, present_states};
     }
 
@@ -338,7 +384,7 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
         c10::ScalarType precision;
         if(_precision == Vocinity::Context_Scorer::Precision::FP16)
         {
-            precision = torch::kFloat16;
+            precision = torch::kHalf;
         }
         else if(_precision == Vocinity::Context_Scorer::Precision::FP32)
         {
@@ -362,20 +408,23 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
 
 #	ifdef CUDA_AVAILABLE
         auto& memory_info_in_use =
-            _device == Vocinity::Context_Scorer::Inference_Hardware::CUDA ? _cuda_memory_info
-                                                                          : _cpu_memory_info;
+            _environment == Vocinity::Context_Scorer::Inference_Environment::CUDA
+                    or _environment
+                           == Vocinity::Context_Scorer::Inference_Environment::TensorRT
+                ? _cuda_memory_info
+                : _cpu_memory_info;
 #	else
         auto& memory_info_in_use = _cpu_memory_info;
 #	endif
 
-        const c10::ScalarType precision = torch::kFloat32;//get_torch_precision();
+        const c10::ScalarType precision = get_torch_precision();
 
         const auto& [hidden_size, num_attention_heads, num_layers, _] =
             Abstract_Scorer_Backend::get_configuration(_type);
 
         logits = torch::zeros(
             {_batch_size, _batch_seq_len, _vocab_size},
-            torch::TensorOptions().dtype(precision).device(get_torch_device(_device)));
+            torch::TensorOptions().dtype(precision).device(get_torch_device(_environment)));
         present_states = torch::zeros(
             {num_layers,
              2,
@@ -383,28 +432,45 @@ class Scorer_ONNX_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Bac
              num_attention_heads,
              _batch_seq_len,
              hidden_size / num_attention_heads},
-            torch::TensorOptions().dtype(precision).device(get_torch_device(_device)));
+            torch::TensorOptions().dtype(precision).device(get_torch_device(_environment)));
         const uint present_elem_length = 2 * _batch_size * num_attention_heads * _batch_seq_len
                                          * (hidden_size / num_attention_heads);
 
         for(int l = 0; l < num_layers; ++l)
         {
-            const Ort::Value present_l_bound = Ort::Value::CreateTensor(
-                memory_info_in_use,
-                reinterpret_cast<float*>(present_states[l].data_ptr()),
-                present_elem_length,
-                present_states[l].sizes().data(),
-                present_states[l].sizes().size());
+            const Ort::Value present_l_bound =
+                _precision == Vocinity::Context_Scorer::Precision::FP16
+                    ? Ort::Value::CreateTensor(
+                        memory_info_in_use,
+                        reinterpret_cast<Ort::Float16_t*>(present_states[l].data_ptr()),
+                        present_elem_length * sizeof(uint16_t),
+                        present_states[l].sizes().data(),
+                        present_states[l].sizes().size(),
+                        ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16)
+                    : Ort::Value::CreateTensor(
+                        memory_info_in_use,
+                        reinterpret_cast<float*>(present_states[l].data_ptr()),
+                        present_elem_length,
+                        present_states[l].sizes().data(),
+                        present_states[l].sizes().size());
             _binding->BindOutput((std::string("present_") + std::to_string(l)).c_str(),
                                  present_l_bound);
         }
 
-        Ort::Value logits_bound =
-            Ort::Value::CreateTensor(memory_info_in_use,
-                                     reinterpret_cast<float*>(logits.data_ptr()),
-                                     _batch_size * _batch_seq_len * _vocab_size,
-                                     logits.sizes().data(),
-                                     logits.sizes().size());
+        const Ort::Value logits_bound =
+            _precision == Vocinity::Context_Scorer::Precision::FP16
+                ? Ort::Value::CreateTensor(
+                    memory_info_in_use,
+                    reinterpret_cast<Ort::Float16_t*>(logits.data_ptr()),
+                    _batch_size * _batch_seq_len * _vocab_size * sizeof(uint16_t),
+                    logits.sizes().data(),
+                    logits.sizes().size(),
+                    ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16)
+                : Ort::Value::CreateTensor(memory_info_in_use,
+                                           reinterpret_cast<float*>(logits.data_ptr()),
+                                           _batch_size * _batch_seq_len * _vocab_size,
+                                           logits.sizes().data(),
+                                           logits.sizes().size());
 
         _binding->BindOutput("logits", logits_bound);
     }

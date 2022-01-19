@@ -12,13 +12,16 @@ Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_mod
                                          const Precision precision
 #ifdef CUDA_AVAILABLE
                                          ,
-                                         const Inference_Hardware device
+                                         const Inference_Environment environment
 #endif
                                          )
     : _precision(precision)
     , _type(type)
 #ifdef CUDA_AVAILABLE
-    , _device(device == Inference_Hardware::CUDA ? torch::kCUDA : torch::kCPU)
+    , _torch_device((environment == Inference_Environment::CUDA
+                    or environment == Inference_Environment::TensorRT)
+                       ? torch::kCUDA
+                       : torch::kCPU)
 #endif
     , _tokenizer(std::make_unique<Tokenizer>(encoding_conf.vocab_file,
                                              encoding_conf.merge_file,
@@ -29,14 +32,15 @@ Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_mod
                                              encoding_conf.mask_token_str))
 {
 #ifdef CUDA_AVAILABLE
-    if(device == Inference_Hardware::CUDA)
+    if(environment == Inference_Environment::CUDA
+       or environment == Inference_Environment::TensorRT)
     {
 #	ifdef ONNX_AVAILABLE
         _inference_backend = std::make_unique<Scorer_ONNX_Backend>(
-            scorer_model_path, precision, _tokenizer->get_vocab_size(), type, device);
+            scorer_model_path, precision, _tokenizer->get_vocab_size(), type, environment);
 #	else
-        _inference_backend =
-            std::make_unique<Scorer_Torch_Backend>(scorer_model_path, precision, type, device);
+        _inference_backend = std::make_unique<Scorer_Torch_Backend>(
+            scorer_model_path, precision, type, environment);
 #	endif
     }
     else
@@ -713,5 +717,5 @@ Vocinity::Context_Scorer::encode(const std::string& sentence, const bool paralle
                      torch::TensorOptions().dtype(_inference_backend->get_input_int_range()));
     input_mask.index_put_({Slice(None, lr_bos_eos_padded_token_size)}, 1);
 
-    return {full_sequence.to(_device), input_mask.to(_device), actual_token_size};
+    return {full_sequence.to(_torch_device), input_mask.to(_torch_device), actual_token_size};
 }
