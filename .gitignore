@@ -69,3 +69,4 @@ grpc-client/venv/
 
 grpc-client/context_scorer_pb2_grpc.py
 grpc-server/qmake/cudaArchTool
+grpc-server/qmake/cudaArchTool

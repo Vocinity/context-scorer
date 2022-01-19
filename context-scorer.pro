@@ -1,6 +1,6 @@
 message($$TARGET)
 
-DISTFILES+=README.md
+DISTFILES+=README.md doc/Usage-Instructions-Client-Notes.MD doc/Application-Flow-Server-Notes.MD
 
 include(qmake/subdirVariablePassing.pri)
 

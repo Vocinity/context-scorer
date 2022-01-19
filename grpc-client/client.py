@@ -16,7 +16,6 @@ class Homonym_Generation_Query:
     max_distance: int
     dismissed_word_indices: List[int]
     dismissed_words: List[str]
-    model_code: str = ""
 
 
 @dataclasses.dataclass
@@ -25,7 +24,7 @@ class Context_Scoring_Query:
     input: Homonym_Generation_Query
     post_context: str
     per_char_normalized: bool
-
+    model_code: str = ""
 
 class Context_Scorer_Client(object):
     def __init__(self, host="127.0.0.1", port=1991):
@@ -78,8 +77,8 @@ if __name__ == '__main__':
     except grpc.RpcError as e:
         print(e.code())
     query = Context_Scoring_Query(
-        pre_context="Click on the eye in the icon tray to pick your product of interest or say echelon connect bike or smart rower.",
-        input=Homonym_Generation_Query(input="echelon collect.", max_num_of_best_num_homonyms=10, max_distance=2,
+        pre_context="Good Morning. My name is Valerie, and I can answer your questions about the Echelon home gym products. You may interrupt me by saying Hey Valerie. And whenever you say something, please give me a moment to gather my thoughts. Also, opening the icon tray below will pause our conversation, and closing it will continue it. Calls may be recorded for training and quality assurance purposes.  Before we get started, here are some helpful phrases you can use during our chat. Click on the eye in the icon tray to pick your product of interest or please say connected bike, smart rower, or reflect mirror.",
+        input=Homonym_Generation_Query(input="smart rower.", max_num_of_best_num_homonyms=5, max_distance=2,
                                        dismissed_word_indices=[],
                                        dismissed_words=[]), post_context="", per_char_normalized=True)
     client.get_best_n_alternatives(query=query)

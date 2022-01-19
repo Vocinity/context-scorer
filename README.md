@@ -7,7 +7,7 @@ Repository contains lib_Context-Scorer, Context-Scorer (example) executable whic
 You don't have time for details? Jump right to the [example building procedure.](https://github.com/Vocinity/context-scorer#example-building-procedure)
 
 ## Documentation
-Doxygen Doxyfile is provided in doc folder but you can live without it. lib_Context_Scorer code is documenting itself.
+Doxygen Doxyfile is provided in doc folder but you can live without it. lib_Context-Scorer code is documenting itself.
 
 ## Python Environment
 
@@ -94,9 +94,9 @@ make install
 | ```CCACHE_OFF```            | ```0```            | using this switch is disabling ccache usage.
 | ```GCC_CHECK_OFF```         | ```0```            | C++ standard is deduced automatically from gcc version. Disable querying gcc version for supported c++ standard if you have a weird configuration that old gcc is overriding the new one and you are sure there is desired CPP17/20 support.
 | ```TEST_OFF```              | ```0```            | Test (that dont exist) wont be compiled
-| ```USE_TORCH_CUDA_RT```        | ```0```            | This option makes use of libcudart in libtorch library path instead of the one that comes with CUDA SDK. Normally they can live together but some systems require to enable this switch.
-| ```CUDNN_OFF```                | ```0```            | otherwise CUDNN in /usr/local/cuda/lib64 wont be be linked. Requires CUDA.
-| ```TENSOR_RT_OFF```            | ```0```            | otherwise Tensor RT in /usr/local/trt/lib wont be be linked. Requires CUDA.
+| ```USE_TORCH_CUDA_RT```     | ```0```            | This option makes use of libcudart in libtorch library path instead of the one that comes with CUDA SDK. Normally they can live together but some systems require to enable this switch.
+| ```CUDNN_OFF```             | ```0```            | otherwise CUDNN in /usr/local/cuda/lib64 wont be be linked. Requires CUDA.
+| ```TENSOR_RT_OFF```         | ```0```            | otherwise Tensor RT in /usr/local/trt/lib wont be be linked. Requires CUDA.
 | ```ONNX_OFF```              | ```0```            | Otherwise ONNX runtime expected to be found in DEPS_ROOT/include/onnx and DEPS_ROOT/lib/onnx.
 | ```CUDA_OFF```              | ```0```            | CUDA is used if either `/usr/local/cuda/version.txt` or `/usr/local/cuda/version.json` is found. Please dont miss libtorch and installed cuda version compatibility note in [External Dependencies](https://github.com/Vocinity/aMisc#external-dependencies) section.
 | ```USE_TORCH_CUDA_RT```     | ```0```            | This option makes use of libcudart in libtorch library path instead of the one that comes with CUDA SDK. Normally they can live together but some systems require to enable this switch.
@@ -121,7 +121,7 @@ make install
 
 | **Switch**                  | **Default Value**  |**By Default**                              |
 |:---------------------------:|:------------------:|:-------------------------------------:|
-| ```SERVER_OFF```           | ```0```            | Building server
+| ```SERVER_OFF```            | ```0```            | Building server
 
 
 #### Installation Material
@@ -286,9 +286,17 @@ loss: 5264.53
 sentence_probability: -1.76413e-169
 ```
 
+## Documentation
+* [Application Flow and Server Notes](https://github.com/Vocinity/context-scorer/blob/stable/doc/Application-Flow-Server-Notes.MD)
+* [Usage Instructions and Client Notes](https://github.com/Vocinity/context-scorer/blob/stable/doc/Usage-Instructions-Client-Notes.MD)
+* Training (in progress...)
+
 ## License
 Vocinity Licensing Terms [@sipvoip](https://www.github.com/sipvoip)
 
 ## Diary
+### - January 18th -
+* FP16 Support
+
 ### - October 30th -
 * Release
