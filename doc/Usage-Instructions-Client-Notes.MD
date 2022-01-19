@@ -16,6 +16,7 @@ class Homonym_Generation_Query:
     max_distance: int
     dismissed_word_indices: List[int]
     dismissed_words: List[str]
+    model_code: str = ""
 
 
 @dataclasses.dataclass
@@ -24,7 +25,6 @@ class Context_Scoring_Query:
     input: Homonym_Generation_Query
     post_context: str
     per_char_normalized: bool
-    model_code: str = ""
 ```
 Context_Scoring_Query query wraps Homonym_Generation_Query plus supportive pre or post context to score.
 
