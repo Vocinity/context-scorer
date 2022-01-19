@@ -79,7 +79,7 @@ if __name__ == '__main__':
         print(e.code())
     query = Context_Scoring_Query(
         pre_context="Click on the eye in the icon tray to pick your product of interest or say echelon connect bike or smart rower.",
-        input=Homonym_Generation_Query(input="echelon collect.", max_num_of_best_num_homonyms=3, max_distance=2,
+        input=Homonym_Generation_Query(input="echelon collect.", max_num_of_best_num_homonyms=10, max_distance=2,
                                        dismissed_word_indices=[],
                                        dismissed_words=[]), post_context="", per_char_normalized=True)
     client.get_best_n_alternatives(query=query)
