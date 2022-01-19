@@ -5,7 +5,7 @@ Runtime starts with a "Knock_Knock" query.
 You should "say_hi" as early as possible to let server to initialize and warmup the models that you are planning to use. This is a blocking request for you.
 > Note that initializations of a model can even take up to a minute in case of TensorRT inference backend.
 
-Having no model code to subscribe will tell server to initialize `generic`model. It is up to server design but likely there will be multiple models for different domains in different latency/accuracy characteristics.
+Having no model code to subscribe will tell server to initialize `generic`model. Likely there will be multiple models for different domains.
 > Your previously initialized model may die after some time to have room in gpu memory to be able to initialize other models. So periodically saying hi is recommended.
 ### Query Preparation
 ```python
@@ -61,9 +61,15 @@ is zero based array indice of words that you dont want server to produce alterna
 is list of words that you dont want server to produce alternatives. Original word will be used for context scoring.
 
 ##### [obsolote]`matching_method`
-
 There are 4 homonym matching methods. 2 of them dont require you to have a phoneme dictionary but raw word list is enough. Planned to be dropped.
 
+##### `model_code`
+which scorer model will score this the produced homonyms. Empty is fine (means generic).
+
+Having scorer model id in Homonym_Generation_Query may seem unintutive but think mode_code like context_code.
+"Ideally" models are trained for the context that we build our homonyms dictionary. So this code is defining, model, homonym dictionary and relevant domain all together.
+
+Please see `preset` parameter below for complete picture.
 
 ---
 For example "Smart rower." produces below combinations with the `max_distance=2`,` max_num_of_best_num_homonyms=5`:
@@ -100,11 +106,9 @@ is the string appended to each alternative sentence for scoring that words homop
 ##### `per_char_normalized`
 do you want me to normalize score for sequence length? Yes it matters. Being lengthy or not is changing score alone.
 
-##### `model_code`
-which scorer model should score this query. Empty is fine (means generic).
-
 ##### [not implemented yet but use]`preset`
-You can order server to be quick or accurate. There are things that context-scorer_server can do according your needs.
+You can order server to be quick or accurate. There are things that context-scorer_server can do according your needs. Simply server can run this inference using smaller or deeper model trained for your context.
+
 
 ---
 
