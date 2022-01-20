@@ -7,7 +7,11 @@ Repository contains lib_Context-Scorer, Context-Scorer (example) executable whic
 You don't have time for details? Jump right to the [example building procedure.](https://github.com/Vocinity/context-scorer#example-building-procedure)
 
 ## Documentation
-Doxygen Doxyfile is provided in doc folder but you can live without it. lib_Context-Scorer code is documenting itself.
+Doxygen Doxyfile is provided in doc folder for innlie documentation but you can live without it. lib_Context-Scorer code is documenting itself.
+
+* [Application Flow and Server Notes](https://github.com/Vocinity/context-scorer/blob/stable/doc/Application-Flow-Server-Notes.MD)
+* [Usage Instructions and Client Notes](https://github.com/Vocinity/context-scorer/blob/stable/doc/Usage-Instructions-Client-Notes.MD)
+* Training (in progress...)
 
 ## Python Environment
 
@@ -286,15 +290,13 @@ loss: 5264.53
 sentence_probability: -1.76413e-169
 ```
 
-## Documentation
-* [Application Flow and Server Notes](https://github.com/Vocinity/context-scorer/blob/stable/doc/Application-Flow-Server-Notes.MD)
-* [Usage Instructions and Client Notes](https://github.com/Vocinity/context-scorer/blob/stable/doc/Usage-Instructions-Client-Notes.MD)
-* Training (in progress...)
-
 ## License
 Vocinity Licensing Terms [@sipvoip](https://www.github.com/sipvoip)
 
 ## Diary
+### - January 20th -
+* Client Instructions README
+
 ### - January 18th -
 * FP16 Support
 
