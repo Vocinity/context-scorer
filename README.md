@@ -4,7 +4,7 @@
 
 Repository contains lib_Context-Scorer, Context-Scorer (example) executable which is demonstrating context scoring and Context-Score_Server (grpc service).
 
-You don't have time for details? Jump right to the [example building procedure.](https://github.com/Vocinity/context-scorer#example-building-procedure)
+You don't have time for details? Jump right to the [example building procedure.](https://github.com/Vocinity/context-scorer#build-procedure)
 
 ## Documentation
 Doxygen Doxyfile is provided in doc folder for innlie documentation but you can live without it. lib_Context-Scorer code is documenting itself.
