@@ -34,6 +34,7 @@ Visual Studio: NO
 #### lib_Context-Scorer
 [From aMisc Inclusion](https://github.com/Vocinity/aMisc)
 - External Deps
+
 | **What**              | **Critical?**               | **Works?**   |**Best**    |**Notes**    |
 |:---------------    --:|:-------------------    ----:|:------------:|:----------:|:-------- --:|
 | Libtorch              | :heavy_check_mark yes       | >=1.8.2      | 1.10       |             |
