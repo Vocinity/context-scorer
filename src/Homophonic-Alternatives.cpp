@@ -224,11 +224,11 @@ class Vocinity::Homophonic_Alternative_Composer::Homophonic_Alternative_Composer
                       });
 #endif
         }
-        if(instructions.max_best_num_alternatives)
+        if(instructions.max_num_of_best_homophonic_alternatives)
         {
-            if(result.size() > instructions.max_best_num_alternatives)
+            if(result.size() > instructions.max_num_of_best_homophonic_alternatives)
             {
-                result.resize(instructions.max_best_num_alternatives);
+                result.resize(instructions.max_num_of_best_homophonic_alternatives);
             }
         }
 

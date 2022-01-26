@@ -98,7 +98,7 @@ class Context_Scorer_Server
             const auto& input = request->input();
 
             const auto& instructions = Vocinity::Homophonic_Alternative_Composer::Instructions{
-                (ushort) request->max_num_of_best_num_homonyms(),
+                (ushort) request->max_num_of_best_homophonic_alternatives(),
                 (short) request->max_distance(),
                 get_vector_from_repeated(request->dismissed_word_indices()),
                 get_vector_from_repeated(request->dismissed_words()),
@@ -187,7 +187,7 @@ class Context_Scorer_Server
             const auto& input = homonym_query_request.input();
 
             const auto& instructions = Vocinity::Homophonic_Alternative_Composer::Instructions{
-                (ushort) homonym_query_request.max_num_of_best_num_homonyms(),
+                (ushort) homonym_query_request.max_num_of_best_homophonic_alternatives(),
                 (short) homonym_query_request.max_distance(),
                 get_vector_from_repeated(homonym_query_request.dismissed_word_indices()),
                 get_vector_from_repeated(homonym_query_request.dismissed_words()),

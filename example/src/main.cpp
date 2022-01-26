@@ -169,7 +169,7 @@ main(int argc, char* argv[])
         Vocinity::Homophonic_Alternative_Composer composer{phonetics_dictionary};
         Vocinity::Homophonic_Alternative_Composer::Instructions instructions;
         instructions.max_distance              = 2;
-        instructions.max_best_num_alternatives = 3;
+        instructions.max_num_of_best_homophonic_alternatives = 3;
         //  instructions.dismissed_word_indices    = {0, 1, 2,4,5,6};
         instructions.method =
             Vocinity::Homophonic_Alternative_Composer::Matching_Method::Phoneme_Transcription;
@@ -249,7 +249,7 @@ main(int argc, char* argv[])
             << "----------------------------------------------------------------------------"
                "-------------------------"
             << std::endl;
-        std::cout << instructions.max_best_num_alternatives
+        std::cout << instructions.max_num_of_best_homophonic_alternatives
                   << " best alternative(s) wanted and max allowed variational distance is "
                   << instructions.max_distance << ". "
                   << (not(instructions.dismissed_words.empty()

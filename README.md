@@ -1,5 +1,5 @@
 # Context Scorer
-###### Author: [@isgursoy](https://www.github.com/isgursoy)
+###### Core: [@isgursoy](https://www.github.com/isgursoy), Server: [@sind4l](https://github.com/sind4l)
 ###### **BEWARE**: You have to donate $5 to [charities](https://donatenow.wfp.org/wfp/~my-donation) for each Batman call without properly following readme.
 
 Repository contains lib_Context-Scorer, Context-Scorer (example) executable which is demonstrating context scoring and Context-Score_Server (grpc service).
@@ -32,11 +32,17 @@ Visual Studio: NO
 ### Dependencies
 
 #### lib_Context-Scorer
-- [From aMisc Inclusion](https://github.com/Vocinity/aMisc)
-  - TORCH *is mandatory.*
-  - ONNX  *is mandatory.*
-  - CUDA & CUDNN *is nice*
-  - TensorRT *is quite nice*
+[From aMisc Inclusion](https://github.com/Vocinity/aMisc)
+- External Deps
+| **What**              | **Critical?**               | **Works?**   |**Best**    |**Notes**    |
+|:---------------    --:|:-------------------    ----:|:------------:|:----------:|:-------- --:|
+| Libtorch              | :heavy_check_mark yes       | >=1.8.2      | 1.10       |             |
+| ONNX Runtime          | :heavy_check_mark yes       | >=1.7.0      | 1.10       | API changes at 1.10 but they are capable |
+| CUDA SDK              | :white_check_mark nice      | >=11.0.3     | 11.4       | [ONNX Runtime](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) defines compatibility            |
+| CUDNN                 | :white_check_mark nice      | >=8.0.4      | 11.4       | [ONNX Runtime](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) defines compatibility            |
+| TensorRT              | :white_check_mark nice      | >=7.2        | 8.0        | [ONNX Runtime](https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#requirements) defines compatibility            |
+
+- Submodules
   - MAGIC_ENUM *is a must.*
   - RANGE_V3 *is optional for pre-C++20. (If you suffer from [compiler seg fault](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=96720), disable RANGE_V3 and use C++20)*
   - JSON *is a must.*
@@ -50,8 +56,10 @@ Visual Studio: NO
 
 #### Context-Scorer_Server
   - lib_Context-Scorer 
-  - GRPC >= 1.25. 1.25 (CENTOS rpm) and 1.27 (Ubunru custom build) are used for development.
-  - Protobuf which is compatible with your GRPC. CENTOS rpm and 3.18 are used for development.
+  - GRPC >= 1.25. v1.25 of RHEL8 and [1.27 deb](https://github.com/Vocinity/apt-rd#grpc-127-dev)
+(Ubuntu Bionic & Focal versions are buggy) are used for development.
+  - Protobuf which is compatible with your GRPC. RHEL8 rpm and [3.18 deb](https://github.com/Vocinity/apt-rd#protobuf-suite-dev)
+ are used for development.
 
 ### Building
 Did you install aMisc? Congrats, then already you did almost all the job.
@@ -199,15 +207,14 @@ make uninstall
 
 > Lets say we are on Centos, you know CENTOS is not fully supported, default gcc is 8.4, we have a nvidia gpu, our cpu has not igpu.
 
-
-* Get some dependencies from yum or apt
+* Get some dependencies from yum
 ```bash
 sudo yum install python3-devel qt5-qtbase-devel tbb-devel
 ```
-```bash
-sudo apt install python3-dev qt5-qmake libtbb-dev
-```
-* Put [ONNX](https://github.com/microsoft/onnxruntime/releases), [CUDA SDK, CUDNN](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements), [TensorRT](https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#requirements) and Torch 1.9+ in (`CENTOS` or `else`) places under DEPS_ROOT (`/opt/local` is default) and `/usr/local` (for NVIDIA toolkits) where [aMisc](https://github.com/Vocinity/aMisc#customization) expects to find.
+
+* Put ONNX, CUDA SDK, CUDNN, TensorRT and Torch to (`CENTOS` or `else`) places under DEPS_ROOT (`/opt/local` is default) and `/usr/local` 
+(for NVIDIA toolkits) where [aMisc](https://github.com/Vocinity/aMisc/blob/stable/qmake/depend_aMisc_template.pri)
+expects to find.
 * and make sure linker is able to see these libraries. Either by `export`ing `LD_LIBRARY_PATH` or ld.so.conf:
 ```
 $ cat /etc/ld.so.conf.d/opt.conf 
@@ -227,7 +234,7 @@ cd aMisc
 mkdir build
 cd build
 ```
-* Setup gcc 11 by sourcing secondary environment:
+* Setup gcc 10+ by sourcing secondary environment:
 ```bash
 source /opt/rh/gcc-toolset-11/enable
 ```
@@ -294,6 +301,9 @@ sentence_probability: -1.76413e-169
 Vocinity Licensing Terms [@sipvoip](https://www.github.com/sipvoip)
 
 ## Diary
+### - January 27th -
+* Server Instructions README
+
 ### - January 20th -
 * Client Instructions README
 

@@ -47,7 +47,7 @@ namespace Vocinity
         struct Instructions
         {
             /** @brief max_best_num_alternatives should be set 0 for getting all. */
-            ushort max_best_num_alternatives = 2;
+            ushort max_num_of_best_homophonic_alternatives = 2;
 
             /** @brief max_distance is length of query word if -1 */
             short max_distance = 1;

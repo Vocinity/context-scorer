@@ -12,7 +12,7 @@ Having no model code to subscribe will tell server to initialize `generic`model.
 @dataclasses.dataclass
 class Homonym_Generation_Query:
     input: str
-    max_num_of_best_num_homonyms: int
+    max_num_of_best_homophonic_alternatives: int
     max_distance: int
     dismissed_word_indices: List[int]
     dismissed_words: List[str]
@@ -42,9 +42,9 @@ is what you want to produce sentences as permutations of homophonic relatives of
 * Abbrevitions matter for homonym lookup. You know where to visit for notion. 
 * Shorter input means less work and less room for errors. Keep as short as possible.
 
-##### `max_num_of_best_num_homonyms`
+##### `max_num_of_best_homophonic_alternatives`
 is UPPER limit of number of homonyms to produce. 
-* There may be less than `max_num_of_best_num_homonyms` available with given distance. Even maybe none.
+* There may be less than `max_num_of_best_homophonic_alternatives` available with given distance. Even maybe none.
 * Keeping this number low is fast and safe just like input length.
 
 ##### `max_distance`
@@ -52,7 +52,7 @@ is UPPER limit of allowed phoneme difference distance.
 
 * Similarity map database preparation defines actual upper limit for distance you can travel.
 Currently `distance=2`is feasible but as long as you can afford such a giant cartesian dictionary it is okay to host bigger distances.
-`max_num_of_best_num_homonyms`will limit your lookup path starting by `distance=0` aka perfect homonyms.
+`max_num_of_best_homophonic_alternatives`will limit your lookup path starting by `distance=0` aka perfect homonyms.
 
 ##### `dismissed_word_indices`
 is zero based array indice of words that you dont want server to produce alternatives. Original word will be used for context scoring.
@@ -72,7 +72,7 @@ Having scorer model id in Homonym_Generation_Query may seem unintutive but think
 Please see `preset` parameter below for complete picture.
 
 ---
-For example "Smart rower." produces below combinations with the `max_distance=2`,` max_num_of_best_num_homonyms=5`:
+For example "Smart rower." produces below combinations with the `max_distance=2`,` max_num_of_best_homophonic_alternatives=5`:
 ```
 SMARTT (~0)
 START (~1)

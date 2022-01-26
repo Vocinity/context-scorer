@@ -12,7 +12,7 @@ from typing import List
 @dataclasses.dataclass
 class Homonym_Generation_Query:
     input: str
-    max_num_of_best_num_homonyms: int
+    max_num_of_best_homophonic_alternatives: int
     max_distance: int
     dismissed_word_indices: List[int]
     dismissed_words: List[str]
@@ -47,7 +47,7 @@ class Context_Scorer_Client(object):
     def get_homonyms(self, query: Homonym_Generation_Query):
         request = cs.Homonym_Generation_Query()
         request.input = query.input
-        request.max_num_of_best_num_homonyms = query.max_num_of_best_num_homonyms
+        request.max_num_of_best_homophonic_alternatives = query.max_num_of_best_homophonic_alternatives
         request.max_distance = query.max_distance
         request.dismissed_word_indices.extend(query.dismissed_word_indices)
         request.dismissed_words.extend(query.dismissed_words)
@@ -60,7 +60,7 @@ class Context_Scorer_Client(object):
         request = cs.Context_Scoring_Query()
         request.material.pre_context = query.pre_context
         request.material.input.input = query.input.input
-        request.material.input.max_num_of_best_num_homonyms = query.input.max_num_of_best_num_homonyms
+        request.material.input.max_num_of_best_homophonic_alternatives = query.input.max_num_of_best_homophonic_alternatives
         request.material.input.max_distance = query.input.max_distance
         request.material.input.dismissed_word_indices.extend(query.input.dismissed_word_indices)
         request.material.input.dismissed_words.extend(query.input.dismissed_words)
@@ -78,7 +78,7 @@ if __name__ == '__main__':
         print(e.code())
     query = Context_Scoring_Query(
         pre_context="Good Morning. My name is Valerie, and I can answer your questions about the Echelon home gym products. You may interrupt me by saying Hey Valerie. And whenever you say something, please give me a moment to gather my thoughts. Also, opening the icon tray below will pause our conversation, and closing it will continue it. Calls may be recorded for training and quality assurance purposes.  Before we get started, here are some helpful phrases you can use during our chat. Click on the eye in the icon tray to pick your product of interest or please say connected bike, smart rower, or reflect mirror.",
-        input=Homonym_Generation_Query(input="smart rower.", max_num_of_best_num_homonyms=5, max_distance=2,
+        input=Homonym_Generation_Query(input="smart rower.", max_num_of_best_homophonic_alternatives=5, max_distance=2,
                                        dismissed_word_indices=[],
                                        dismissed_words=[]), post_context="", per_char_normalized=True)
     client.get_best_n_alternatives(query=query)

@@ -32,7 +32,7 @@ message Homonym_Generation_Query{
     string input=1;
 
     // higher, more latency. 0 means all. 5 is fine.
-    uint32 max_num_of_best_num_homonyms=2;
+    uint32 max_num_of_best_homophonic_alternatives=2;
     // higher, memory intensive. max is num of characters in longest word of input. 2 is fine.
     uint32 max_distance=3;
 

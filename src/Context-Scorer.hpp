@@ -13,7 +13,7 @@ namespace Vocinity
         enum Precision : short { FP32 = 0, FP16 = 1 /*, INT8=2*/ };
         enum class GPT_TYPE:short
         {
-            DistilGPT2=0, // implemented
+            DistilGPT2=0,
             GPT2_Small=1,
             GPT2_Medium=2,
             GPT2_Large=4,
@@ -25,7 +25,7 @@ namespace Vocinity
          //   GPT_NEOX=256,
         };
 
-      public:
+    private:
         using Input_Ids         = torch::Tensor;
         using Attention_Mask    = torch::Tensor;
         using Actual_Token_Size = uint64_t;
@@ -117,7 +117,7 @@ namespace Vocinity
          * dispatching parts of it once stacked as a batch.
          *
          * this is a good idea for decent gpu and long text but here the point:
-         * -Especially in TensorRT, if your next time you run this function for
+         * -Especially in TensorRT, if next time you run this function for
          * different multiplier of get_max_sequence_length characters (I hardcoded 64,
          * optimal max is 1024) then graph optimizer needs to profile that new different
          * shape of dynamic axis and should update engine cache.
@@ -130,7 +130,8 @@ namespace Vocinity
          * consider_intra_batching=false has no such constrain and slower
          * if text is too long and your gpu is not saturated. It just runs
          * get_max_sequence_length chars long padded blocks of context one by one sequentially
-         * without batching. So input is always in the [1,get_max_sequence_length] shape.
+         * in sliding window manner without batching. So input is always in the
+         * [1,get_max_sequence_length] shape.
          * Summing up results of two blocks and inferencing two blocks at once is same for us
          * in terms of accuracy in our way of perplexity computation.
          *
