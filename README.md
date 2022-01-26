@@ -35,13 +35,13 @@ Visual Studio: NO
 [From aMisc Inclusion](https://github.com/Vocinity/aMisc)
 - External Deps
 
-| **What**              | **Critical?**               | **Works?**   |**Best**    |**Notes**    |
-|:---------------------:|:---------------------------:|:------------:|:----------:|:-----------:|
-| Libtorch              | :heavy_check_mark yes       | >=1.8.2      | 1.10       |             |
-| ONNX Runtime          | :heavy_check_mark yes       | >=1.7.0      | 1.10       | API changes at 1.10 but they are capable |
-| CUDA SDK              | :white_check_mark nice      | >=11.0.3     | 11.4       | [ONNX Runtime](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) defines compatibility            |
-| CUDNN                 | :white_check_mark nice      | >=8.0.4      | 11.4       | [ONNX Runtime](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) defines compatibility            |
-| TensorRT              | :white_check_mark nice      | >=7.2        | 8.0        | [ONNX Runtime](https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#requirements) defines compatibility            |
+| **What**              | **Critical?**                | **Works?**   |**Best**    |**Notes**    |
+|:---------------------:|:----------------------------:|:------------:|:----------:|:-----------:|
+| Libtorch              | :heavy_check_mark: yes       | >=1.8.2      | 1.10       |             |
+| ONNX Runtime          | :heavy_check_mark: yes       | >=1.7.0      | 1.10       | API changes at 1.10 but they are capable |
+| CUDA SDK              | :white_check_mark: nice      | >=11.0.3     | 11.4       | [ONNX Runtime](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) defines compatibility            |
+| CUDNN                 | :white_check_mark: nice      | >=8.0.4      | 11.4       | [ONNX Runtime](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) defines compatibility            |
+| TensorRT              | :white_check_mark: nice      | >=7.2        | 8.0        | [ONNX Runtime](https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html#requirements) defines compatibility            |
 
 - Submodules
   - MAGIC_ENUM *is a must.*
