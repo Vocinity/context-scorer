@@ -36,7 +36,7 @@ Visual Studio: NO
 - External Deps
 
 | **What**              | **Critical?**               | **Works?**   |**Best**    |**Notes**    |
-|:---------------    --:|:-------------------    ----:|:------------:|:----------:|:-------- --:|
+|:---------------------:|:---------------------------:|:------------:|:----------:|:-----------:|
 | Libtorch              | :heavy_check_mark yes       | >=1.8.2      | 1.10       |             |
 | ONNX Runtime          | :heavy_check_mark yes       | >=1.7.0      | 1.10       | API changes at 1.10 but they are capable |
 | CUDA SDK              | :white_check_mark nice      | >=11.0.3     | 11.4       | [ONNX Runtime](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) defines compatibility            |
