@@ -156,8 +156,8 @@ unix{
     Debug:include(conan.pri)
 
     extensionProcessor(CL)
-    QT -= core gui qml quickcontrols2 quickcontrols qtquickcompiler
-    CONFIG -= qt
+    QT -= core gui qml quickcontrols2 quickcontrols
+    CONFIG -= qt qtquickcompiler
     enableExtension(JSON)
     #extensionProcessor(PYSTRING)
     extensionProcessor(SOUNDEX)
