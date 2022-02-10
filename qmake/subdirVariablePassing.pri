@@ -24,6 +24,7 @@ message("Current config parameters are: $$CONFIG")
     message("- - - - - - - - - - - - - - - HW Acceleration - - - - - - - - - - - - - - - ")
     message("ONNX_OFF - Otherwise ONNX runtime expected to be found in DEPS_ROOT/include/onnx and DEPS_ROOT/lib/onnx")
     message("CUDA_OFF - otherwise CUDA is on if either /usr/local/cuda/version.txt or /usr/local/cuda/version.json is found.")
+    message('CUDA_WANTED_ARCHS - If you are compiling a CUDA build but you dont have a GPU then you need to pass target archs like CUDA_WANTED_ARCHS="52 86"')
     message("USE_TORCH_CUDA_RT - this option makes use of libcudart in libtorch library path instead of the one that comes with CUDA SDK")
     message("CL_OFF - OpenCL has dependencies, information will be printed about them.")
     message("- - - - - - - - - - - - - - - https://conan.io/center - - - - - - - - - - - - - - - ")
@@ -68,6 +69,7 @@ defineTest(RegisterVariable) {
 }
 
 variables+=\
+CUDA_WANTED_ARCHS\
 CPP17\
 GCC8\
 GCC9\
