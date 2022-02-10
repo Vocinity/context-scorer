@@ -87,7 +87,7 @@ make install
 | ```DEPL_ROOT```             | ```/opt/local```   | Where to install artifacts. You can also set it as environment variable. As a QMake argument: `qmake /path/to/ProFile.pro "DEPL_ROOT=/usr/local"` and qmake argument overrides env var. If env var is not set and qmake argument is omitted, it will be set as `/opt/local/`.
 | ```FAKE_INSTALL```          | ```empty```        | Way to have an independent build root for packaging without affecting `make install` procedure. Only copies runtime materials like executables and libraries without headers and inclusion helpers. You can also set it as environment variable. As a QMake argument: `qmake /path/to/ProFile.pro "FAKE_INSTALL=/usr/local"` and qmake argument overrides env var. If env var is not set and qmake argument is omitted, it will be set as `/opt/local/`.
 | ```PKG_BUILD_ROOT```        | ```empty```        | If you are installing into the build root, you need to provide this argument or environment variable to be able to use inclusion helpers from real install root in runtime. As a QMake argument: `qmake /path/to/ProFile.pro "PKG_BUILD_ROOT=/usr/local"` and qmake argument overrides env var. For example you should set `PKG_BUILD_ROOT=/home/user/build_root` and `DEPL_ROOT=/opt/local`
-| ```CUDA_WANTED_ARCHS```     | ```auto```         | If you are compiling a CUDA build but you dont have a GPU then you need to pass target archs like CUDA_WANTED_ARCHS="52 86"')
+| ```CUDA_WANTED_ARCHS```     | ```auto```         | If you are compiling a CUDA build but you dont have a GPU then you need to pass target archs like `CUDA_WANTED_ARCHS="52 86"`
 
 
 | **Switch**                  | **Default Value**  |**By Default**                         |
