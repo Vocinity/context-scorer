@@ -1,0 +1,15 @@
+[Unit]
+Description=Context-Scorer GRPC Server at 8081
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+User=isgursoy
+ExecStart=/opt/local/bin/akil/Context-Scorer_Server_cu 0.0.0.0 8081 /opt/models/context-scorer/perplexity-computation/openai/onnx/distilgpt2_cuda_o1_int64_fp16_3080.onnx /opt/models/context-scorer/perplexity-computation/openai/onnx/vocab.json /opt/models/context-scorer/perplexity-computation/openai/onnx/merges.huggingface.txt --cuda
+
+
+[Install]
+WantedBy=multi-user.target
