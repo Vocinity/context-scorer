@@ -214,6 +214,7 @@ class Context_Scorer_Server
                 return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
             }
 
+            std::vector<std::string> alternatives;
             std::vector<std::string> queries;
             for(const auto& sentence : combinations)
             {
@@ -227,6 +228,7 @@ class Context_Scorer_Server
 
                     alternative.resize(alternative.size() - 1);
                     alternative += ".";
+                    alternatives.push_back(alternative);
                     std::string full_statement = alternative;
                     if(not material.pre_context().empty())
                     {
@@ -271,6 +273,11 @@ class Context_Scorer_Server
                 catch(const std::exception& e)
                 {
                     return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
+                }
+
+                for(ushort result_order=0;result_order<alternatives.size();++result_order)
+                {
+                    results[result_order].utterance=alternatives.at(result_order);
                 }
 
 #ifdef CPP17_AVAILABLE
