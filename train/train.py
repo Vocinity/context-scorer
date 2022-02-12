@@ -1,16 +1,15 @@
-from transformers import GPT2LMHeadModel, GPT2Tokenizer
 import numpy as np
 import random
 import torch
 from torch.utils.data import Dataset, DataLoader
-from transformers import GPT2Tokenizer, GPT2LMHeadModel, get_linear_schedule_with_warmup
-# from tqdm import tqdm, trange
+from transformers import GPT2Tokenizer, GPT2LMHeadModel, get_linear_schedule_with_warmup, AutoModelForCausalLM, set_seed
+import logging
 import math
 import csv
 from pprint import pprint
 import os
 import time
-from accelerate import Accelerator, DistributedType
+from accelerate import Accelerator
 
 
 class GenerationDataset(Dataset):
@@ -71,11 +70,20 @@ class GenerationDataset(Dataset):
                 position_ids = (current_att_mask.long().cumsum(-1) - 1)
                 position_ids.masked_fill_(current_att_mask == 0, 1)
 
-                self.samples.append({"input_ids": current_input_ids,
-                                     "attention_mask": current_att_mask,
-                                     "labels": target_ids, "position_ids": position_ids
-                                     # , "past_key_values": past
-                                     })
+                elem = {"input_ids": current_input_ids,
+                        "attention_mask": current_att_mask,
+                        "labels": target_ids, "position_ids": position_ids
+                        # , "past_key_values": past
+                        }
+                if not is_train:
+                    q_ids, q_mask, q_length = self.__encode \
+                        (dialog["q"] if not reverse_q_a_order else dialog["a"], tokenizer=self.tokenizer, max_seq_length=512)
+                    elem["query"] = dialog["q"] if not reverse_q_a_order else dialog["a"]
+                    elem["response"] = dialog["a"] if not reverse_q_a_order else dialog["q"]
+                    elem["query_input_id"] = q_ids
+                    elem["query_att_mask"] = q_mask
+                    elem["query_length"] = q_length
+                self.samples.append(elem)
 
                 if end_loc == input_ids.shape[-1]:
                     break
@@ -150,11 +158,13 @@ class GenerationDataset(Dataset):
 def train(
         train_dataset, eval_dataset, model,
         tokenizer,
-        batch_size=8, epochs=1000, lr=5e-5,
-        warmup_steps=200, output_dir=".",
-        output_prefix="context-scorer_",
+        batch_size=8, epochs=100, lr=5e-5,weight_decay=0.0,
+        warmup_steps=0, output_dir=".",
+        output_prefix="context-scorer",
         save_model_on_epoch=True, gradient_accumulation_steps=1
 ):
+    set_seed(42)
+
     accelerator = Accelerator(split_batches=True)
 
     torch.cuda.empty_cache()
@@ -162,13 +172,12 @@ def train(
     # device = torch.device(device)
     device = accelerator.device
     model = model.to(device)
-    model.train()
 
     no_decay = ["bias", "LayerNorm.weight"]
     optimizer_grouped_parameters = [
         {
             "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
-            "weight_decay": 0.0,
+            "weight_decay": weight_decay,
         },
         {
             "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
@@ -178,11 +187,28 @@ def train(
     optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=lr)
 
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    eval_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    eval_dataloader = DataLoader(eval_dataset, batch_size=batch_size, shuffle=False)
 
     model, optimizer, train_dataloader, eval_dataloader = accelerator.prepare(
         model, optimizer, train_dataloader, eval_dataloader
     )
+
+    if accelerator.is_local_main_process:
+        initial_model = accelerator.unwrap_model(model)
+        initial_model.eval()
+        last_eval_sample = eval_dataset[0]
+        print("Query is: [",last_eval_sample["query"],"]\n")
+        greedy_output = initial_model.generate(last_eval_sample["query_input_id"].to(device).unsqueeze(0),
+                                          max_length=1024,
+                                          temperature=1.0,
+                                          top_k=0,
+                                          top_p=0.9,
+                                          repetition_penalty=5.0,
+                                          do_sample=False,
+                                          num_return_sequences=1,
+                                          attention_mask=last_eval_sample["query_att_mask"].to(device).unsqueeze(0))
+        print("Initially generated: \n[" + tokenizer.decode(greedy_output[0], skip_special_tokens=True) + "]", "\n")
+
 
     scheduler = get_linear_schedule_with_warmup(
         optimizer, num_warmup_steps=warmup_steps, num_training_steps=-1
@@ -190,8 +216,9 @@ def train(
 
     epoch_loss = torch.Tensor([0])
     for epoch in range(epochs):
-        print(f"Training epoch {epoch}")
-        # torch.cuda.empty_cache()
+        if accelerator.is_local_main_process:
+            print(f"Training epoch {epoch}")
+            younger_model = accelerator.unwrap_model(model)
         model.train()
         loss = torch.Tensor([0])
         for idx, samples in enumerate(train_dataloader):
@@ -215,13 +242,13 @@ def train(
 
             if accelerator.is_local_main_process:
                 time_spent = time.time() - beginning_of_time
-                print("Epoch", epoch, "\tIteration ", idx, "/", len(train_dataset), "\tLoss:", loss.item(),
+                print("Epoch", epoch, "\tIteration ", idx, "/", int(len(train_dataset) / (batch_size)),
+                      "\tLoss:", f'{loss.item():10.8f}',
                       "\tLast epoch loss",
-                      epoch_loss.item(), "\tIteration took:", time_spent, "seconds")
+                      epoch_loss.item(), "\tIteration took:", f'{time_spent:10.8f}', "seconds")
 
         model.eval()
         losses = []
-        last_eval_sample = None
         for step, batch in enumerate(eval_dataloader):
             with torch.no_grad():
                 outputs = model(input_ids=batch["input_ids"],
@@ -232,7 +259,6 @@ def train(
 
             loss = outputs.loss
             losses.append(accelerator.gather(loss.repeat(batch_size)))
-            last_eval_sample = batch
 
         losses = torch.cat(losses)
         losses = losses[: len(eval_dataset)]
@@ -241,40 +267,89 @@ def train(
         except OverflowError:
             perplexity = float("inf")
 
-        greedy_output = model.generate(last_eval_sample["input_ids"], max_length=1024)
-
-        print("Greedy generation output:\n" + 100 * '-')
-        print(tokenizer.decode(greedy_output[0], skip_special_tokens=True))
-
-        print("\tEpoch ", epoch, " loss:", loss.item(), " perplexity:", perplexity)
+        if accelerator.is_local_main_process:
+            last_eval_sample = eval_dataset[0]
+            print("\n", 50 * '# ', "\n")
+            print("Generation seed: [",last_eval_sample["query"] + "]")
+            younger_model.eval()
+            greedy_output = younger_model.generate(last_eval_sample["query_input_id"].to(device).unsqueeze(0),
+                                                   max_length=1024,
+                                                   temperature=1.0,
+                                                   top_k=0,
+                                                   top_p=0.9,
+                                                   repetition_penalty=5.0,
+                                                   do_sample=False,
+                                                   num_return_sequences=1,
+                                                   attention_mask=last_eval_sample["query_att_mask"].to(device).unsqueeze(0))
+            print("Greedy generation output from previous epoch was: [", tokenizer.decode(greedy_output[0], skip_special_tokens=True),"]\n")
+            older_model = accelerator.unwrap_model(model)
+            greedy_output = older_model.generate(last_eval_sample["query_input_id"].to(device).unsqueeze(0),
+                                                 max_length=1024,
+                                                 temperature=1.0,
+                                                 top_k=0,
+                                                 top_p=0.9,
+                                                 repetition_penalty=5.0,
+                                                 do_sample=False,
+                                                 num_return_sequences=1,
+                                                 attention_mask=last_eval_sample["query_att_mask"].to(device).unsqueeze(0)
+                                                 )
+            print("Greedy generation output from this epoch was: [",
+                  tokenizer.decode(greedy_output[0], skip_special_tokens=True), "]\n")
+            print("Had to be something like: ")
+            print(last_eval_sample["response"])
+            print("\n", 50 * '# ', "\n")
+            print("\tEpoch ", epoch, " loss:", loss.item(), " perplexity:", perplexity)
         epoch_loss = loss
         if save_model_on_epoch:
             accelerator.wait_for_everyone()
-            unwrapped_model = accelerator.unwrap_model(model)
-            unwrapped_model.save_pretrained(os.path.join(output_dir, f"{output_prefix}-{epoch}.pt"),
+            if accelerator.is_local_main_process:
+                older_model.save_pretrained(os.path.join(output_dir, f"{output_prefix}_{epoch}.pt"),
                                             save_function=accelerator.save)
-            # if accelerator.is_main_process:
-            #    tokenizer.save_pretrained(output_dir)
+                # if accelerator.is_main_process:
+                #    tokenizer.save_pretrained(output_dir)
     return model
 
 
-def main():
+def main(model_to_be_validated="/opt/cloud/projects/vocinity/context-scorer/train/context-scorer__1.pt"):
     phonetic_hacks = {"lyve": "live"}
     model_code = "gpt2"
 
     my_tokenizer = GPT2Tokenizer.from_pretrained(model_code)
-    my_model = GPT2LMHeadModel.from_pretrained(model_code)
+    my_model = AutoModelForCausalLM.from_pretrained(model_code if model_to_be_validated is None else model_to_be_validated,use_cache=False)
     my_model.resize_token_embeddings(len(my_tokenizer))
-    train_set = GenerationDataset(csv_file_path="615dcbc2f1223f001a9c3c9c.csv", tokenizer=my_tokenizer,
-                                  max_seq_length=1024, is_train=True,
-                                  reverse_q_a_order=False, phonetic_hacks=phonetic_hacks)
+    my_model.gradient_checkpointing_enable()
+
     eval_set = GenerationDataset(csv_file_path="615dcbc2f1223f001a9c3c9c.csv", tokenizer=my_tokenizer, is_train=False,
                                  max_seq_length=1024, eval_split=0.05,
                                  reverse_q_a_order=False, phonetic_hacks=phonetic_hacks)
 
-    train(train_dataset=train_set, tokenizer=my_tokenizer, eval_dataset=eval_set, model=my_model, batch_size=8,
-          gradient_accumulation_steps=8)
+    if model_to_be_validated is None:
+        train_set = GenerationDataset(csv_file_path="615dcbc2f1223f001a9c3c9c.csv", tokenizer=my_tokenizer,
+                                      max_seq_length=1024, is_train=True,
+                                      reverse_q_a_order=False, phonetic_hacks=phonetic_hacks)
+        train(train_dataset=train_set, tokenizer=my_tokenizer, eval_dataset=eval_set, model=my_model, batch_size=10,
+              gradient_accumulation_steps=10)
+    else:
+        my_model.to("cpu")
+        my_model.eval()
+        eval_dataloader = DataLoader(eval_set, batch_size=1, shuffle=False)
+        for step, batch in enumerate(eval_dataloader):
+            with torch.no_grad():
+                print("\n",step, 50 * '# ', "\n")
+                print("Seed is: ",batch["query"])
+                greedy_output = my_model.generate(batch["query_input_id"].to("cpu"),
+                                                  max_length=1024,
+                                                  temperature=1,
+                                                  top_k=0,
+                                                  top_p=0.9,
+                                                  repetition_penalty=5.0,
+                                                  do_sample=False,
+                                                  num_return_sequences=1,
+                                                  attention_mask=batch["query_att_mask"].to("cpu"))
+                print("Generated: [" + my_tokenizer.decode(greedy_output[0], skip_special_tokens=True) + "]")
+                print("Had to be something like:")
+                print(batch["response"])
 
 
 if __name__ == "__main__":
-    main()
+    main(None)
