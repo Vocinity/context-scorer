@@ -72,6 +72,12 @@ grpc-server/qmake/cudaArchTool
 grpc-server/qmake/cudaArchTool
 grpc-server/qmake/cudaArchTool
 
+<<<<<<< HEAD
 train/.idea/
 
 train/*.pt
+=======
+train/*.pt
+
+train/.idea/
+>>>>>>> dev
