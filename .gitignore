@@ -75,3 +75,5 @@ grpc-server/qmake/cudaArchTool
 train/*.pt
 
 train/.idea/
+
+*.bin
