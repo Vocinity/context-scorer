@@ -613,7 +613,7 @@ main(int argc, char* argv[])
     generic_model_configuration.precision   = Vocinity::Context_Scorer::Precision::FP16;
     generic_model_configuration.tokenizer_configuration =
         Vocinity::Context_Scorer::Tokenizer_Configuration{argv[4], argv[5]};
-    generic_model_configuration.type = Vocinity::Context_Scorer::GPT_TYPE::GPT2_Medium;
+    generic_model_configuration.type = Vocinity::Context_Scorer::GPT_TYPE::DistilGPT2;
 
 
     Unordered_Map<Context_Scorer_Server::Model_Code,
