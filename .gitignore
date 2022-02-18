@@ -81,3 +81,5 @@ train/*.pt
 
 train/.idea/
 >>>>>>> dev
+
+*.bin
