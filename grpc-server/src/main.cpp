@@ -275,9 +275,10 @@ class Context_Scorer_Server
                     return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
                 }
 
-                for(ushort result_order=0;result_order<alternatives.size();++result_order)
+                for(ushort result_order = 0; result_order < alternatives.size();
+                    ++result_order)
                 {
-                    results[result_order].utterance=alternatives.at(result_order);
+                    results[result_order].utterance = alternatives.at(result_order);
                 }
 
 #ifdef CPP17_AVAILABLE
@@ -465,8 +466,12 @@ class Context_Scorer_Server
                     model_configuration.model_path,
                     model_configuration.type,
                     model_configuration.tokenizer_configuration,
-                    model_configuration.precision,
-                    model_configuration.environment);
+                    model_configuration.precision
+#ifdef CUDA_AVAILABLE
+                    ,
+                    model_configuration.environment
+#endif
+                );
                 // scorer->flush_cuda_tensor_cache_before_inference();
                 scorer->optimize_parallelization_policy_for_use_of_multiple_instances();
 

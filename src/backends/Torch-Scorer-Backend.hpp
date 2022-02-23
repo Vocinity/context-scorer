@@ -22,7 +22,9 @@ class Scorer_Torch_Backend : public Vocinity::Context_Scorer::Abstract_Scorer_Ba
     )
     {
         _precision = precision;
+#ifdef CUDA_AVAILABLE
         _environment=environment;
+#endif
         if(scorer_model_path.empty())
         {
             throw std::runtime_error("scorer_model_path can not be empty");

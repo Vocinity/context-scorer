@@ -23,7 +23,7 @@ main(int argc, char* argv[])
     {
         auto model_initialization_chrono = std::chrono::high_resolution_clock::now();
 
-           #ifdef CUDA_AVAILABLE
+#ifdef CUDA_AVAILABLE
         Vocinity::Context_Scorer::Inference_Environment environment;
         if(std::string(argv[4]) == "--cuda")
         {
@@ -44,12 +44,14 @@ main(int argc, char* argv[])
             Vocinity::Context_Scorer::GPT_TYPE::DistilGPT2,
             Vocinity::Context_Scorer::Tokenizer_Configuration{argv[2], argv[3]},
             Vocinity::Context_Scorer::Precision::FP16
-        #ifdef CUDA_AVAILABLE
-                    ,
+#ifdef CUDA_AVAILABLE
+            ,
             environment
-        #endif
+#endif
         };
+#ifdef CUDA_AVAILABLE
         scorer.flush_cuda_tensor_cache_before_inference();
+#endif
 
         std::cout << "Instance " << instance_index << " " << argv[1]
                   << " model initialization took: "
@@ -168,7 +170,7 @@ main(int argc, char* argv[])
 
         Vocinity::Homophonic_Alternative_Composer composer{phonetics_dictionary};
         Vocinity::Homophonic_Alternative_Composer::Instructions instructions;
-        instructions.max_distance              = 2;
+        instructions.max_distance                            = 2;
         instructions.max_num_of_best_homophonic_alternatives = 3;
         //  instructions.dismissed_word_indices    = {0, 1, 2,4,5,6};
         instructions.method =
