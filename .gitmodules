@@ -1,6 +1,0 @@
-[submodule "3rdparty/lightseq"]
-	path = 3rdparty/lightseq
-	url = https://github.com/isgursoy/lightseq
-[submodule "3rdparty/FasterTransformer"]
-	path = 3rdparty/FasterTransformer
-	url = https://github.com/isgursoy/FasterTransformer
