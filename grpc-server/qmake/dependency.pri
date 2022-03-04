@@ -51,4 +51,10 @@ include(protobuf.pri)
 
 SRC_DIR=$$PWD/../src/
 INCLUDEPATH += $${SRC_DIR}
-SOURCES += $${SRC_DIR}/main.cpp
+
+HEADERS += $${SRC_DIR}/ContextScorerGrpcService.h\
+    $${SRC_DIR}/ScorerModelConfiguration.h\
+    $${SRC_DIR}/HomonymComposerConfiguration.h
+
+SOURCES += $${SRC_DIR}/main.cpp \
+    $${SRC_DIR}/ContextScorerGrpcService.cpp
