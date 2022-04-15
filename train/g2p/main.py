@@ -801,6 +801,8 @@ def decode_word(model, word, source_dictionary, target_dictionary, tokenizer, wi
 			hypo_tokens = tgt_dict.encode_line(hypo_str, add_if_not_exist=True)
 		return hypo_tokens, hypo_str, alignment
 
+	word = word.replace("", " ")[1: -1]
+
 	tokens = source_dictionary.encode_line(encode_fn(word, tokenizer), add_if_not_exist=False).long().unsqueeze(0).to(
 		device)
 	results = []
@@ -829,8 +831,9 @@ def decode_word(model, word, source_dictionary, target_dictionary, tokenizer, wi
 	return result_string
 
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
+	import time
 	src_dict = Dictionary.load("./dict.word.txt")
 	tgt_dict = Dictionary.load("./dict.phon.txt")
 	tokenizer = encoders.build_tokenizer(Namespace(tokenizer="moses"))
@@ -839,9 +842,95 @@ if __name__ == "__main__":
 	sequence_generator = SequenceGenerator()
 
 	export_jit = True
-	if export_jit:
+	export_onnx = False
+	if export_jit or export_onnx:
+		if not export_onnx:
+			from fairseq.modules import SinusoidalPositionalEmbedding
+			torch.quantization.quantize_dynamic(model=sequence_generator,
+												qconfig_spec={torch.nn.Linear, torch.nn.Conv1d,
+															  torch.nn.LayerNorm,
+															  torch.nn.ReLU, torch.nn.MultiheadAttention,
+															  SinusoidalPositionalEmbedding},
+												dtype=torch.qint8, inplace=True)
 		sequence_generator = torch.jit.script(sequence_generator)
-		sequence_generator.save("transformer_g2p_jit-" + device + ".jit")
+		sequence_generator.eval()
+		if not export_onnx:
+			sequence_generator = torch.jit.optimize_for_inference(sequence_generator)
+			sequence_generator.save("transformer_g2p-" + device + ".jit")
+		else:
+			import onnxruntime as ort
+			import onnx
+			from onnxoptimizer import optimize, get_available_passes, get_fuse_and_elimination_passes
+			from onnxruntime.quantization import quantize_dynamic, QuantizationMode, QuantType
 
-	print(decode_word(sequence_generator, "s c r i p t", src_dict, tgt_dict, tokenizer, device=device))
-	print(decode_word(sequence_generator, "m o d u l e", src_dict, tgt_dict, tokenizer, device=device))
+			word = "breakdown"
+			onnx_sample_input = src_dict.encode_line(tokenizer.encode(word.replace("", " ")[1: -1]),
+													 add_if_not_exist=False).long().unsqueeze(0).to(
+				device)
+			onnx_model_path = "transformer_g2p-" + device + ".onnx"
+			torch.onnx.export(SequenceGenerator(), (onnx_sample_input),
+							  onnx_model_path,
+							  #input_names=["tokenized_word"],
+							  #  output_names=['out_1', 'out_2', 'out_3', 'out_4', 'out_5'],
+							  dynamic_axes={'input.1': [1]},
+							  keep_initializers_as_inputs=False,
+							  verbose=True, opset_version=15, do_constant_folding=False,
+							  export_params=True)
+
+			quantize_dynamic(model_input=onnx_model_path, model_output=onnx_model_path,
+							 weight_type=QuantType.QUInt8,
+							 per_channel=True,
+							 reduce_range=True)
+
+
+			#optimized_onnx_model = optimize(onnx.load(onnx_model_path), passes=get_available_passes())
+			#onnx.save(optimized_onnx_model, onnx_model_path)
+
+			onnx_model = onnx.load(onnx_model_path)
+			output = [node.name for node in onnx_model.graph.output]
+			input_all = [node.name for node in onnx_model.graph.input]
+			input_initializer = [node.name for node in onnx_model.graph.initializer]
+			net_feed_input = list(set(input_all) - set(input_initializer))
+			print('Inputs: ', net_feed_input)
+			print('Outputs: ', output)
+
+			sess_options = ort.SessionOptions()
+			sess_options.intra_op_num_threads = 1
+			sess_options.inter_op_num_threads = 1
+			sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
+			sess_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+			sess_options.optimized_model_filepath = onnx_model_path
+			sess_options.log_severity_level = 4
+			print("Available providers:", ort.get_available_providers())
+			onnx_session = ort.InferenceSession(onnx_model_path, sess_options=sess_options,
+												providers=["CPUExecutionProvider"])
+			print("Providers in use:", onnx_session.get_providers())
+			onnx_output = onnx_session.run(None, {"input.1": onnx_sample_input.numpy()})
+			print(onnx_output)
+
+
+	warmed_up=False
+	seconds_per_char=0;
+	num_iters=0;
+	with open('cmudict-0.7b.txt') as f:
+		for line in f:
+			if "(" in line:
+				continue
+			word = line.split(" ")[0]
+			ground_truth = line[line.find(' ') + 2:-1]
+
+			beginning = time.time()
+			synthetic = decode_word(sequence_generator, word.lower(), src_dict, tgt_dict, tokenizer, device=device,
+									with_stress=True)
+			end = time.time()
+
+			tour_timing=(end - beginning)/len(word)
+			if tour_timing<0.03 and not warmed_up:
+				warmed_up=True
+			if warmed_up:
+				seconds_per_char=((seconds_per_char*num_iters)+tour_timing)/(num_iters+1)
+				num_iters+=1
+				print("Time(ms) spent per char: ",seconds_per_char*1000)
+
+			if ground_truth != synthetic:
+				print("\t\t\tword:", word, "\t gt:", ground_truth, "\t|\t synth:", synthetic)
