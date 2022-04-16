@@ -26,16 +26,6 @@ unix {
     }
 
     !ON_CONAN{
-        LIGHTSEQ_AVAILABLE{
-            CENTOS{
-            }else{
-                LIBS+= -L/usr/lib/x86_64-linux-gnu/hdf5/serial/ -lhdf5
-            }
-            CENTOS{LIBS+=-lprotobuf.so -lprotoc}
-            else{
-                LIBS+= -L$${MY_DEPS_ROOT}/lib -l:libprotobuf.so.3.18.0.0 -l:libprotoc.so.3.18.0.0
-            }
-        }
     }else{
         CONFIG += conan_basic_setup
         Context_Scorer-Conan_Deploy_Dir=$${MY_DEPL_ROOT}/conan/

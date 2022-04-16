@@ -155,12 +155,11 @@ unix{
     Debug:include(conan.pri)
 
     extensionProcessor(CL)
-    QT -= core gui qml quickcontrols2 quickcontrols qtquickcompiler
-    CONFIG -= qt
+    QT -= gui qml quickcontrols2 quickcontrols qtquickcompiler
+    QT += core
+    enableExtension(QT)
     enableExtension(JSON)
-    #extensionProcessor(PYSTRING)
-    extensionProcessor(SOUNDEX)
-    extensionProcessor(DOUBLE_METAPHONE)
+    enableExtension(SIG_SLOT)
     extensionProcessor(LEVENSHTEIN_SSE)
     extensionProcessor(RAPIDFUZZ_CPP)
     enableExtension(ROBIN_HOOD_HASHING)
@@ -175,10 +174,6 @@ unix{
         message("DEBIAN derivative environment.")
     }
 
-    FASTER_TRANSFORMER_AVAILABLE{
-        DEFINES+= BUILD_GPT CUDA11_MODE WMMA
-        CONFIG+= BUILD_GPT CUDA11_MODE WMMA
-    }
 
     !CUDA_OFF{
         if(exists("/usr/local/cuda/version.txt")|exists("/usr/local/cuda/version.json")){
@@ -186,8 +181,6 @@ unix{
             DEFINES+=CUDA_AVAILABLE
             CONFIG+=CUDA_AVAILABLE
             #enableExtension(THRUST)
-            #enableExtension(LIGHTSEQ)
-            #enableExtension(FASTER_TRANSFORMER)
             extensionProcessor(TENSOR_RT)
             extensionProcessor(CUDNN)
         }

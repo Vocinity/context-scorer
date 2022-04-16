@@ -494,6 +494,22 @@ class Context_Scorer_Server
 
                 auto composer = std::make_shared<Vocinity::Homophonic_Alternative_Composer>(
                     phonetics_dictionary);
+
+#ifdef SIG_SLOT_AVAILABLE
+                composer->saw_strange_word.connect(
+                    [](const std::string& word, const std::vector<std::string>& phonemes)
+                    {
+                        std::string phonemes_string;
+                        for(const auto& phoneme : phonemes)
+                        {
+                            phonemes_string += phonemes_string + " ";
+                        }
+                        phonemes_string.resize(phonemes_string.size() - 1);
+                        std::cout << "New word: " << word << " | " << phonemes_string
+                                  << std::endl;
+                    });
+#endif
+
                 if(not homonym_composer_configuration.precomputed_phoneme_similarity_map
                            .empty())
                 {

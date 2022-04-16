@@ -156,12 +156,11 @@ unix{
     Debug:include(conan.pri)
 
     extensionProcessor(CL)
-    QT -= core gui qml quickcontrols2 quickcontrols
-    CONFIG -= qt qtquickcompiler
+    QT -= gui qml quickcontrols2 quickcontrols qtquickcompiler
+    QT += core
+    enableExtension(QT)
     enableExtension(JSON)
-    #extensionProcessor(PYSTRING)
-    extensionProcessor(SOUNDEX)
-    extensionProcessor(DOUBLE_METAPHONE)
+    enableExtension(SIG_SLOT)
     extensionProcessor(LEVENSHTEIN_SSE)
     extensionProcessor(RAPIDFUZZ_CPP)
     enableExtension(ROBIN_HOOD_HASHING)
@@ -181,13 +180,8 @@ unix{
             message("FOUND CUDA")
             DEFINES+=CUDA_AVAILABLE
             CONFIG+=CUDA_AVAILABLE
-            FASTER_TRANSFORMER_AVAILABLE{
-                enableExtension(THRUST)
-            }
             extensionProcessor(TENSOR_RT)
             extensionProcessor(CUDNN)
-            #enableExtension(LIGHTSEQ)
-            #enableExtension(FASTER_TRANSFORMER)
         }
     }
 

@@ -9,6 +9,8 @@ DISTFILES += \
     ../scorer.py \
     ../doc/Doxyfile
 
+RESOURCES += context_scorer_bag.qrc
+
 # bear -o %{sourceDir}/compile_commands.json make %{buildDir}
 #TIDY_CHECKS = -checks=-*,modernize-*,clang-analyzer-*,bugprone-*,cert-*,cppcoreguidelines-*,hicpp-*,misc-*,performance-*,readability-*
 #system(/usr/bin/run-clang-tidy.py $$TIDY_CHECKS -j 8 2>&1 | sed -r \"s/\\(([0-9]+)\\)/:\\1/g\" 1>&2)

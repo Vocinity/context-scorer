@@ -1,4 +1,4 @@
-#include <akil/json/json.hpp>
+#include <akil/nlohmann/json.hpp>
 #include <akil/robin-hood-hashing/robin_hood.h>
 #include <algorithm>
 #include <codecvt>
@@ -222,7 +222,7 @@ namespace Vocinity
     {
       public:
         Tokenizer(const std::string& vocab_file,
-                  const std::string& merge_file,
+                  const std::string& merge_file={},
                   const std::string& bos_token_str = "<s>",
                   const std::string eos_token_str  = "</s>",
                   const std::string pad_token_str  = "<pad>",
@@ -333,7 +333,10 @@ namespace Vocinity
     };
     void Tokenizer::load_merge(const std::string& merge_file)
     {
-        //c++中，char, string 都是ANSI字符
+        if(merge_file.empty())
+        {
+            return;
+        }
         bpe_ranks.reserve(60000);
         std::ifstream file_handle(merge_file);
         assert(file_handle.good() && "file not exists");

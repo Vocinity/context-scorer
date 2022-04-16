@@ -13,11 +13,6 @@ namespace Vocinity
         class Homophonic_Alternative_Composer_Impl;
 
       public:
-#ifdef ROBIN_HOOD_HASHING_AVAILABLE
-#	define Unordered_Map robin_hood::unordered_flat_map
-#else
-#define Unordered_Map std::unordered_map
-#endif
         using Word           = std::string;
         using Pronounciation = std::string;
         using Distance       = short;
@@ -29,17 +24,18 @@ namespace Vocinity
         using Word_Alternatives             = std::vector<Alternative_Word>;
         using Alternative_Words_Of_Sentence = std::vector<Word_Alternatives>;
 
+#ifdef SIG_SLOT_AVAILABLE
+        /// Catch that word, put it to your dictionary, precompute async and set updated similarity map
+      public:
+        using Phonemes=std::vector<std::string>;
+        sigslot::signal<Word, std::vector<std::string>> saw_strange_word;
+#endif
+
         enum class Matching_Method: short
     {
         Phoneme_Transcription=0 // Most Accurate and Slow
 #ifdef LEVENSHTEIN_AVAILABLE
         ,Phoneme_Levenshtein=1 // Slowest and Accurate
-#endif
-#ifdef SOUNDEX_AVAILABLE
-        ,Soundex=2 // Faster, Least Accurate
-#endif
-#ifdef DOUBLE_METAPHONE_AVAILABLE
-        ,Double_Metaphone=3 // Fastest, Less Acurate
 #endif
     };
 
@@ -74,9 +70,6 @@ namespace Vocinity
         ~Homophonic_Alternative_Composer();
 
       public:
-        // https://cmusphinx.github.io/wiki/tutorialdict/
-        // https://github.com/cmusphinx/g2p-seq2seq
-        // https://github.com/AdolfVonKleist/Phonetisaurus
         static std::vector<std::pair<std::string, std::string>> load_phonetics_dictionary(
             const std::filesystem::path& dictionary = "./cmudict.0.7b.txt");
 
@@ -110,27 +103,6 @@ namespace Vocinity
             const std::filesystem::path& map_path_to_be_exported,
             const bool binary = true);
 
-      public:
-#ifdef SOUNDEX_AVAILABLE
-        /**
-     * @brief The dictionary is in <transcription,encoding> form.
-     *  <transcription,soundex> is for Soundex
-     *
-     *  akil::string namespace contains Soundex encoder.
-     */
-        void set_in_memory_soundex_dictionary(
-            const Unordered_Map<std::string, std::string>& dictionary);
-#endif
-#ifdef DOUBLE_METAPHONE_AVAILABLE
-        /**
-     * @brief The dictionary is in <transcription,encoding> form.
-     *  <transcription,<primary_code,alternative_code>> is for Metaphone.
-     *
-     *  akil::string namespace contains Double Metaphone encoder.
-     */
-        void set_in_memory_double_metaphone_dictionary(
-            const Unordered_Map<std::string, std::pair<std::string, std::string>>& dictionary);
-#endif
       public:
         Alternative_Words_Of_Sentence get_alternatives(const std::string& reference,
                                                        const Instructions& instructions,

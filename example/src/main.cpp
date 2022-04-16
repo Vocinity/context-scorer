@@ -1,5 +1,8 @@
 #include "../src/Context-Scorer.hpp"
 #include "../src/Homophonic-Alternatives.hpp"
+#include "../src/Tokenizer.cpp"
+using namespace Vocinity;
+
 
 /**
  * @brief main
@@ -16,6 +19,7 @@ main(int argc, char* argv[])
     const auto physical_cores = std::thread::hardware_concurrency() / 2;
     std::cout << physical_cores << " physical cores available." << std::endl;
     std::cout << argv[4] << " device is selected" << std::endl;
+
 
     auto inference = [&](const int instance_index,
                          const std::vector<std::string>& utterances,
@@ -43,7 +47,7 @@ main(int argc, char* argv[])
             argv[1],
             Vocinity::Context_Scorer::GPT_TYPE::DistilGPT2,
             Vocinity::Context_Scorer::Tokenizer_Configuration{argv[2], argv[3]},
-            Vocinity::Context_Scorer::Precision::FP16
+            Vocinity::Context_Scorer::Precision::FP32
 #ifdef CUDA_AVAILABLE
             ,
             environment
@@ -169,6 +173,19 @@ main(int argc, char* argv[])
                 "/opt/cloud/projects/vocinity/models/context-scorer/cmudict-0.7b.txt");
 
         Vocinity::Homophonic_Alternative_Composer composer{phonetics_dictionary};
+#ifdef SIG_SLOT_AVAILABLE
+        composer.saw_strange_word.connect(
+            [](const std::string& word, const std::vector<std::string>& phonemes)
+            {
+                std::string phonemes_string;
+                for(const auto& phoneme : phonemes)
+                {
+                    phonemes_string += phoneme + " ";
+                }
+                phonemes_string.resize(phonemes_string.size() - 1);
+                std::cout << "New word: " << word << " | " << phonemes_string << std::endl;
+            });
+#endif
         Vocinity::Homophonic_Alternative_Composer::Instructions instructions;
         instructions.max_distance                            = 2;
         instructions.max_num_of_best_homophonic_alternatives = 3;
