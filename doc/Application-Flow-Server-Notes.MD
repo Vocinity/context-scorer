@@ -40,23 +40,15 @@ again `update-alternatives --config`.
 ### Terminology
 means producing alternative sentences by combining spelling variations of each word in original sentence.
 
-Spelling characteristics of words are encoded by phonemes in high level way or using specific hashing
-algorithms which producing SAME numerical signature for SIMILAR spellings.
+Spelling characteristics of words are encoded by phonemess.
 
 > What a phoneme looks  like? You can see thousands of them there: https://drive.google.com/file/d/1XXOsqJkRb2DyAmA284rkQQXQozgppQMX/view?usp=sharing
-
-Having SAME signature for SIMILAR phonemes is obviously a problem for us. Those algorithms have their own reasons.
-And our reason to keep them as option is they work with raw words and dont require us to have phonemes of words.
-We still need to host a dictionary with raw english words with those algorithms to be able to fetch alternatives
-but without having phonemes of each word.
 
 We will be mentioning dictionary concept by examples over and over while describing each of these similarity computation methods, dont worry, *just stay with me*. 
 
 Variations are computed by:
 * `phoneme_transcription`: counting missing, extra or different phonemes
-* `phoneme_levenshtein`: not calculating phoneme difference but calculating character difference of phonemes
-*  `Soundex`: hashing
-*  `Double Metaphone`: hashing
+* `phoneme_levenshtein`: not counting phoneme difference but calculating character difference of phonemes
 
 up to a `distance` and up to `max_num_of_best_homophonic_alternatives`count.
 
@@ -64,7 +56,7 @@ up to a `distance` and up to `max_num_of_best_homophonic_alternatives`count.
 
 We have a raw english `query_word="smart"`and we want `max_num_of_best_homophonic_alternatives=5` homophonic alternatives up to `distance=2` 
 
-1. Go phoneme dictionary find phonemes of "smart": S M AA1 R T
+1. Go phoneme dictionary find phonemes of "smart": S M AA1 R T. If you can not find, then synthesize using embedded deep grapheme to phoneme converter.
 2. Walk over whole dictionary and find raw english words which have at most 2 different, missing or extra phonemes
 3. Order findings by `distance`
 4. Keep best 5 `max_num_of_best_homophonic_alternatives`.
@@ -84,7 +76,7 @@ Rather we are keeping precomputed distance lookup table of dictionary words for 
 
 So cool version of previous steps:
 1. Load similarity map big enough to find `distance=2` (precomputed up to distance=2)
-2. Random access word "smart"
+2. Random access word "smart". If you can not, report it to be added asynchronously in background, loop over whole dictionary like before.
 3. Get best 5 homonyms of it.
 
 difference would be seconds...
@@ -92,14 +84,6 @@ difference would be seconds...
 #### phoneme_levenshtein
 
 Everything is same. Except we are getting levenshtein distance (character difference, commonly used to calculate Word Error Rate) SMAA1RT,STAA1RT,MAA1RT strings. There are some obsolote reasons to have this method. Will be dropped soon.
-
-#### Soundex
-
-Everything is same. Except we are comparing soundex signature of word smart (S563) with soundex  hash of each word in dictionary. Error prone, to be dropped.
-
-#### Double Metaphone
-
-Everything is same. Except we are comparing metaphone signature of word smart with metaphone hash of each word in dictionary. Error prone, to be dropped.
 
 ### Homonym Generation Flow
 > It is expected to have big changes in this section after https://github.com/Vocinity/context-scorer/issues/1 resolved.

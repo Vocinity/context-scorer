@@ -61,7 +61,7 @@ is zero based array indice of words that you dont want server to produce alterna
 is list of words that you dont want server to produce alternatives. Original word will be used for context scoring.
 
 ##### [obsolote]`matching_method`
-There are 4 homonym matching methods. 2 of them dont require you to have a phoneme dictionary but raw word list is enough. Planned to be dropped.
+There are 2 homonym matching methods. Planned to be dropped.
 
 ##### `model_code`
 which scorer model will score these produced homonyms. Empty is fine (means generic).
