@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>assets/transformer_g2p-cpu.jit</file>
+    </qresource>
+</RCC>

@@ -84,6 +84,8 @@ train/.idea/
 
 *.bin
 
+train/g2p/venv/
+
 train/g2p/.idea/
 
-train/g2p/venv/
+train/g2p/transformer_g2p_jit-cpu.jit

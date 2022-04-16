@@ -25,12 +25,6 @@ unix {
     }
 
     !ON_CONAN{
-        LIGHTSEQ_AVAILABLE{
-            CENTOS{
-            }else{
-                LIBS+= -L/usr/lib/x86_64-linux-gnu/hdf5/serial/ -lhdf5
-            }
-        }
     }else{
         CONFIG += conan_basic_setup
         Context_Scorer_Conan_Deploy-Dir=$${DEPL_ROOT}/conan/

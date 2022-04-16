@@ -168,12 +168,11 @@ unix{
     Debug:include(conan.pri)
 
     extensionProcessor(CL)
-    QT -= core gui qml quickcontrols2 quickcontrols qtquickcompiler
-    CONFIG -= qt
+    QT -= gui qml quickcontrols2 quickcontrols qtquickcompiler
+    QT += core
+    enableExtension(QT)
     enableExtension(JSON)
-    #extensionProcessor(PYSTRING)
-    extensionProcessor(SOUNDEX)
-    extensionProcessor(DOUBLE_METAPHONE)
+    enableExtension(SIG_SLOT)
     extensionProcessor(LEVENSHTEIN_SSE)
     extensionProcessor(RAPIDFUZZ_CPP)
     enableExtension(ROBIN_HOOD_HASHING)
@@ -186,11 +185,6 @@ unix{
         enableExtension($$extensionName)
     }else{
         message("DEBIAN derivative environment.")
-    }
-
-    FASTER_TRANSFORMER_AVAILABLE{
-        DEFINES+= BUILD_GPT CUDA11_MODE WMMA
-        CONFIG+= BUILD_GPT CUDA11_MODE WMMA
     }
 
     #    CONFIG(debug, debug|release) {

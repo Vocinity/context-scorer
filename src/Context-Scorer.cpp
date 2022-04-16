@@ -1,10 +1,21 @@
 #include "Tokenizer.cpp"
-#include "backends/Faster_Transformer-Scorer-Backend.hpp"
-#include "backends/LightSeq-Scorer-Backend.hpp"
 #include "backends/ONNX-Scorer-Backend.hpp"
 #include "backends/Torch-Scorer-Backend.hpp"
 
 #include <torch/csrc/api/include/torch/nn/functional/padding.h>
+
+class Context_Scorer_Model_Resource_Manager
+{
+  public:
+    Context_Scorer_Model_Resource_Manager()
+    {
+        Q_INIT_RESOURCE(context_scorer_bag);
+    }
+    ~Context_Scorer_Model_Resource_Manager()
+    {
+        Q_CLEANUP_RESOURCE(context_scorer_bag);
+    }
+};
 
 Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_model_path,
                                          const GPT_TYPE type,
@@ -31,6 +42,11 @@ Vocinity::Context_Scorer::Context_Scorer(const std::filesystem::path& scorer_mod
                                              encoding_conf.unk_token_str,
                                              encoding_conf.mask_token_str))
 {
+    {
+        const std::lock_guard lock(_instance_mutex);
+        static Context_Scorer_Model_Resource_Manager resources;
+    }
+
 #ifdef CUDA_AVAILABLE
     if(environment == Inference_Environment::CUDA
        or environment == Inference_Environment::TensorRT)
@@ -664,16 +680,6 @@ Vocinity::Context_Scorer::encode(const std::string& sentence, const bool paralle
                        { return _tokenizer->convert_token_to_id(token); }); // moves
     }
     const Actual_Token_Size actual_token_size = ids.size() - 2;
-#ifdef CUDA_AVAILABLE
-#	ifdef LIGHTSEQ_AVAILABLE
-    if(_device == torch::kCUDA)
-    {
-        ids[0]              = 0;
-        ids[ids.size() - 1] = 0;
-    }
-    else
-#	endif
-#endif
     {
         ids[0]              = _tokenizer->get_bos_token_id();
         ids[ids.size() - 1] = _tokenizer->get_eos_token_id();
@@ -690,18 +696,7 @@ Vocinity::Context_Scorer::encode(const std::string& sentence, const bool paralle
             : lr_bos_eos_padded_token_size;
 
     torch::Tensor full_sequence;
-#ifdef CUDA_AVAILABLE
-#	ifdef LIGHTSEQ_AVAILABLE
-    if(_device == torch::kCUDA)
-    {
-        full_sequence = torch::full(
-            full_sequence_size,
-            0,
-            torch::TensorOptions().dtype(_inference_backend->get_input_int_range()));
-    }
-    else
-#	endif
-#endif
+
     {
         full_sequence = torch::full(
             full_sequence_size,
