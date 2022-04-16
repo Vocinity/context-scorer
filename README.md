@@ -49,8 +49,6 @@ Visual Studio: NO
   - JSON *is a must.*
   - PYSTRING or RANGE_V3 or c++20 support *is needed.*
   - LEVENSHTEIN_SSE or RAPIDFUZZ_CPP *or both would be nice.*
-  - SOUNDEX *is optional.*
-  - DOUBLE_METAPHONE *is optional.*
 
 #### Context-Scorer_Example
 - lib_Context-Scorer 
@@ -101,8 +99,6 @@ make install
 | ```GCC10```                 | ```0```            | /\
 | ```GCC11```                 | ```0```            | /\
 | ```PYSTRING_OFF```          | ```0```            | /\
-| ```DOUBLE_METAPHONE_OFF```  | ```0```            | /\
-| ```SOUNDEX_OFF```           | ```0```            | /\
 | ```RAPIDFUZZ_CPP_OFF```     | ```0```            | /\
 | ```LEVENSHTEIN_SSE_OFF```   | ```0```            | /\
 | ```LTO_OFF```               | ```0```            | enabled by default. If you have a mysterious seg fault in linker, this is way to go.
