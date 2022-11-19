@@ -1,5 +1,5 @@
 # Context Scorer
-###### Core: [@isgursoy](https://www.github.com/isgursoy), Server: [@sind4l](https://github.com/sind4l)
+###### [@isgursoy](https://www.github.com/isgursoy)
 ###### **BEWARE**: You have to donate $5 to [charities](https://donatenow.wfp.org/wfp/~my-donation) for each Batman call without properly following readme.
 
 Repository contains lib_Context-Scorer, Context-Scorer (example) executable which is demonstrating context scoring and Context-Score_Server (grpc service).
